@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Academic (Math) Paper Helper</title>
+    <style type="text/css">
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .container { display: flex; height: 80vh; gap: 10px; margin-top: 10px; }
+        
+        .sidebar {
+            width: 25%;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        /* Search input styling */
+        #search-input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        .left-div {
+            flex-grow: 1;
+            background-color: linen;
+            border: 1px solid #ccc;
+            outline: none;
+        }
+
+        .right-div {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            background-color: white;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .controls { margin-bottom: 10px; }
+        input[type="button"] { padding: 8px 15px; cursor: pointer; }
+    </style>
+
+    <script type="text/javascript">
+        let allLinks = []; // Store links globally for filtering
+
+        function loadHelp() {
+            const selectList = document.getElementById("link-select");
+            const cacheBuster = new Date().getTime();
+            
+            fetch(`paperhelp.json?v=${cacheBuster}`)
+                .then(response => response.json())
+                .then(data => {
+                    allLinks = data.links || Object.values(data)[0];
+                    renderList(allLinks);
+                })
+                .catch(err => {
+                    console.error("Error loading JSON:", err);
+                    selectList.innerHTML = "<option>Error loading links</option>";
+                });
+        }
+
+        // Renders the select options based on an array
+        function renderList(links) {
+            const selectList = document.getElementById("link-select");
+            selectList.innerHTML = "";
+            links.forEach(url => {
+                let option = document.createElement("option");
+                option.value = url;
+                option.text = url.split('/').pop() || url;
+                selectList.appendChild(option);
+            });
+        }
+
+        // Filter function for the search bar
+        function filterLinks() {
+            const query = document.getElementById("search-input").value.toLowerCase();
+            const filtered = allLinks.filter(link => 
+                link.toLowerCase().includes(query)
+            );
+            renderList(filtered);
+        }
+
+        function rand() {
+            const select = document.getElementById("link-select");
+            const options = select.options;
+            if (options.length === 0) return;
+            
+            const randomIndex = Math.floor(Math.random() * options.length);
+            select.selectedIndex = randomIndex;
+            openText();
+        }
+
+        function remStory() {
+            const select = document.getElementById('link-select');
+            if (select.selectedIndex > -1) {
+                const valToRemove = select.value;
+                allLinks = allLinks.filter(link => link !== valToRemove);
+                filterLinks(); // Re-render with current search
+                document.getElementById("display2").innerHTML = ""; 
+            }
+        }
+
+        function openText() {
+            const select = document.getElementById("link-select");
+            const display = document.getElementById("display2");
+            
+            if (select.selectedIndex === -1) {
+                display.innerHTML = '<p style="text-align:center; color:gray;">No selection.</p>';
+                return;
+            }
+
+            const val = select.value;
+            display.innerHTML = `<h3>${val.split('/').pop()}</h3><p>${val}</p>`;
+        }
+    </script>
+</head>
+<body onload="loadHelp()">
+
+    <div class="controls">
+        <input type="button" onclick="rand()" value="🎲 Random Article">
+        <input type="button" onclick="openText()" value="🔗 Open Selection">
+        <input type="button" onclick="remStory();" value="🗑️ Remove Selected">
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <!-- New Search Bar -->
+            <input type="text" id="search-input" onkeyup="filterLinks()" placeholder="Search papers...">
+            
+            <select id="link-select" class="left-div" size="20" onchange="openText()">
+                <option>Loading links...</option>
+            </select>
+        </div>
+
+        <div id="display2" class="right-div">
+            <p style="text-align:center; color:gray;">Select a link to preview content.</p>
+        </div>
+    </div>
+
+</body>
+</html>
