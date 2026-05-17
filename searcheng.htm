@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manifold: Contextual Search</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+        header { padding: 20px 30px; background: #1a1a1a; border-bottom: 1px solid #333; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Sidebar Styles */
+        .sidebar { width: 250px; background: #151515; border-right: 1px solid #333; padding: 20px; overflow-y: auto; }
+        .file-item { 
+            padding: 10px; margin-bottom: 8px; background: #222; border-radius: 4px; 
+            cursor: pointer; font-size: 0.85em; transition: 0.2s; border: 1px solid transparent;
+        }
+        .file-item:hover { background: #2a2a2a; border-color: #007bff; }
+        .file-item.active { background: #007bff33; border-color: #007bff; color: #fff; }
+        
+        /* Content Styles */
+        .content { flex: 1; padding: 30px; display: flex; flex-direction: column; gap: 20px; }
+        .file-zone { border: 2px dashed #444; padding: 20px; text-align: center; border-radius: 8px; cursor: pointer; }
+        .search-controls { display: flex; gap: 10px; }
+        input[type="text"] { flex-grow: 1; padding: 12px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; }
+        
+        button { padding: 12px 20px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; background: #007bff; color: white; }
+        button:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .nav-btn { background: #00ff41; color: #000; min-width: 100px; }
+
+        #result-container { 
+            flex: 1; background: #111; border: 1px solid #333; border-radius: 8px; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; position: relative;
+        }
+        #result-text { font-size: 1.5em; line-height: 1.6; text-align: center; max-width: 800px; }
+        .source-tag { position: absolute; top: 15px; left: 15px; font-family: monospace; color: #00ff41; font-size: 0.7em; text-transform: uppercase; }
+        .highlight { background: rgba(0, 255, 65, 0.2); color: #00ff41; padding: 2px 4px; border-radius: 2px; }
+        .counter { font-family: monospace; color: #888; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 style="margin:0; color:#00ff41;">MANIFOLD: CONTEXT_NAVIGATOR <span id="total-stats" style="font-size: 0.4em; color: #888; margin-left: 20px;">0 FILES LOADED</span></h2>
+</header>
+
+<div class="main-layout">
+    <div class="sidebar" id="fileSidebar">
+        <div style="color: #666; font-size: 0.8em; margin-bottom: 10px;">MATCHING FILES</div>
+        </div>
+
+    <div class="content">
+        <div class="file-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <span id="fileLabel">[ CLICK OR DROP FILES TO INDEX ]</span>
+            <input type="file" id="fileInput" accept=".json,.txt,.py,.tex,.js,.java,.htm,.html,.csv,.cpp" multiple style="display:none;" onchange="handleFiles(this.files)">
+        </div>
+
+        <div class="search-controls">
+            <input type="text" id="searchInput" placeholder="Search keyword..." onkeyup="if(event.key==='Enter') startSearch()">
+            <button onclick="startSearch()">SEARCH</button>
+        </div>
+
+        <div id="result-container">
+            <div class="source-tag" id="sourceTag">NO_SOURCE</div>
+            <div id="result-text">Ready for search...</div>
+        </div>
+
+        <div class="search-controls" style="justify-content: space-between; align-items: center;">
+            <div class="counter" id="resultCounter">RESULT 0 / 0</div>
+            <div style="display: flex; gap: 10px;">
+                <button class="nav-btn" id="prevBtn" onclick="changeResult(-1)" disabled>PREV</button>
+                <button class="nav-btn" id="nextBtn" onclick="changeResult(1)" disabled>NEXT</button>
+                <button class="btn-rand" onclick="loadRandom()">RANDOM</button>
+                <button style="background:#444" onclick="copyCurrent()">COPY</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let masterData = []; // Array of { fileName: string, sentence: string }
+    let searchResults = []; // Current filtered list
+    let currentIndex = 0;
+    let selectedFile = null;
+
+    async function handleFiles(files) {
+        masterData = [];
+        for (let file of files) {
+            const text = await file.text();
+            let sentences = [];
+            
+            if (file.name.endsWith(".json")) {
+                try {
+                    const data = JSON.parse(text);
+                    const arr = Array.isArray(data) ? data : [data];
+                    const rawText = arr.map(item => item.text || "").join(" ");
+                    sentences = rawText.match(/[^.!?]+[.!?]+/g) || [rawText];
+                } catch(e) { console.error("JSON Error in " + file.name); }
+            } else {
+                sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            }
+
+            sentences.forEach(s => {
+                if (s.trim().length > 2) {
+                    masterData.push({ fileName: file.name, text: s.trim() });
+                }
+            });
+        }
+        document.getElementById("total-stats").innerText = `${files.length} FILES LOADED | ${masterData.length} SENTENCES`;
+        document.getElementById("fileLabel").innerText = `INDEX UPDATED: ${files.length} SOURCES`;
+    }
+    
+    function startSearch() {
+        const query = document.getElementById("searchInput").value.toLowerCase().trim();
+        if (!query) return;
+
+        selectedFile = null;
+        // Filter all sentences containing query
+        searchResults = masterData.filter(item => item.text.toLowerCase().includes(query));
+        
+        currentIndex = 0;
+        updateSidebar();
+        updateDisplay();
+    }
+    
+    function loadRandom() {
+        console.log("searchResults = ", searchResults);
+        step = Math.floor(Math.random() * searchResults.length);
+        console.log(step);
+        currentIndex = step;
+        updateDisplay();
+    }
+    
+    function updateSidebar() {
+        const sidebar = document.getElementById("fileSidebar");
+        sidebar.innerHTML = '<div style="color: #666; font-size: 0.8em; margin-bottom: 10px;">MATCHING FILES</div>';
+        
+        // Get unique files in the current search results
+        const uniqueFiles = [...new Set(searchResults.map(item => item.fileName))];
+        
+        uniqueFiles.forEach(fileName => {
+            const div = document.createElement("div");
+            div.className = "file-item" + (selectedFile === fileName ? " active" : "");
+            div.innerText = fileName;
+            div.onclick = () => filterByFile(fileName);
+            sidebar.appendChild(div);
+        });
+    }
+
+    function filterByFile(fileName) {
+        const query = document.getElementById("searchInput").value.toLowerCase().trim();
+        if (selectedFile === fileName) {
+            // Unselect if clicking again
+            selectedFile = null;
+            searchResults = masterData.filter(item => item.text.toLowerCase().includes(query));
+        } else {
+            selectedFile = fileName;
+            searchResults = masterData.filter(item => 
+                item.fileName === fileName && 
+                item.text.toLowerCase().includes(query)
+            );
+        }
+        currentIndex = 0;
+        updateSidebar();
+        updateDisplay();
+    }
+
+    function changeResult(step) {
+        currentIndex += step;
+        updateDisplay();
+    }
+
+    function updateDisplay() {
+        const textDiv = document.getElementById("result-text");
+        const sourceTag = document.getElementById("sourceTag");
+        const counter = document.getElementById("resultCounter");
+        const query = document.getElementById("searchInput").value;
+
+        if (searchResults.length === 0) {
+            textDiv.innerHTML = "No matches found.";
+            sourceTag.innerText = "NO_SOURCE";
+            counter.innerText = "RESULT 0 / 0";
+            toggleButtons(true);
+            return;
+        }
+
+        const currentItem = searchResults[currentIndex];
+        const regex = new RegExp(`(${query})`, 'gi');
+        const highlighted = currentItem.text.replace(regex, `<span class="highlight">$1</span>`);
+        
+        textDiv.innerHTML = highlighted;
+        sourceTag.innerText = currentItem.fileName;
+        counter.innerText = `RESULT ${currentIndex + 1} / ${searchResults.length}`;
+        
+        toggleButtons(false);
+    }
+
+    function toggleButtons(disabled) {
+        document.getElementById("prevBtn").disabled = disabled || currentIndex === 0;
+        document.getElementById("nextBtn").disabled = disabled || currentIndex === searchResults.length - 1;
+    }
+
+    function copyCurrent() {
+        if (searchResults[currentIndex]) {
+            navigator.clipboard.writeText(searchResults[currentIndex].text);
+        }
+    }
+    
+</script>
+</body>
+</html>
