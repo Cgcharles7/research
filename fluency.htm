@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Fluency & Rank-Based</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: auto; line-height: 1.5; color: #333; }
+  textarea { width: 100%; font-size: 15px; padding: 10px; box-sizing: border-box; border: 2px solid #ccc; border-radius: 4px; }
+  .para-container { 
+  position: relative; /* Added to anchor the paragraph close button */
+  margin-bottom: 35px; 
+  padding: 20px; 
+  border-radius: 12px; 
+  background: #fff; 
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+}
+  .para-header { font-weight: bold; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid; }
+  .stalled { border: 3px solid #e57373; }
+  .healthy { border: 3px solid #81c784; }
+
+  /* Added position relative to anchor the X */
+  .sentence-container { 
+    display: flex; 
+    align-items: flex-start; 
+    margin-bottom: 20px; 
+    padding: 15px; 
+    border: 1px solid #eee; 
+    border-radius: 8px; 
+    background: #fafafa; 
+    gap: 20px; 
+    position: relative; 
+  }
+  
+  /* The "X" button style */
+  .close-btn {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    cursor: pointer;
+    color: #ccc;
+    font-weight: bold;
+    font-size: 18px;
+    transition: color 0.2s;
+  }
+  .close-btn:hover { color: #f44336; }
+
+  .sentence-text { flex: 2; }
+  .metrics-table { flex: 1; font-size: 13px; border-collapse: collapse; min-width: 180px; }
+  .metrics-table td, .metrics-table th { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+  
+  .problem-word { background-color: #ffdddd; border-bottom: 1px solid #f44336; }
+  .modal-verb { background-color: #d1c4e9; font-style: italic; }
+  .good-length { border-left: 5px solid #4caf50; padding-left: 10px; } 
+  .mid-length { border-left: 5px solid #ffeb3b; padding-left: 10px; } 
+  .bad-length { border-left: 5px solid #f44336; padding-left: 10px; }
+
+  .preview-box { margin-top: 10px; padding: 15px; background: #e1f5fe; border-left: 5px solid #03a9f4; border-radius: 4px; position: relative; }
+  .editable-word { cursor: pointer; padding: 2px; transition: all 0.1s; display: inline-block; }
+  .editable-word:hover { background-color: #b3e5fc; border-radius: 3px; }
+  .muted-word { opacity: 0.15; text-decoration: line-through; }
+  
+  .breakpoint { color: #aaa; cursor: pointer; font-size: 0.9em; margin: 0 2px; }
+  .breakpoint.active-br { color: #f44336; font-weight: bold; }
+  
+  .controls-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+  .live-counter { background: #0288d1; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+  
+  .copy-btn { 
+    background: #4caf50; color: white; border: none; padding: 4px 10px; 
+    border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;
+    transition: background 0.2s;
+  }
+  .copy-btn:hover { background: #388e3c; }
+  .copy-btn:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+
+<h2>Fluency Analyzer</h2>
+<textarea id="inputText" rows="6" placeholder="Place or type a paragraph here...">While this proof proceeds by contradiction, it is not an 'indirect' path through a vacuum. It is a stress-test of the House of Cards construction. We show that removing a single logical dependency causes the coordinate plane to collapse.</textarea>
+<br><br>
+<button onclick="analyze()" style="padding: 12px 24px; cursor: pointer; background: #333; color: white; border: none; border-radius: 4px;">Run Full Analysis</button>
+
+<div id="output" style="margin-top: 20px;"></div>
+
+<script>
+let commonWords = new Map();
+let wordListLoaded = false;
+const stopWords = new Set(["the","of","to","and","a","in","is","it","that","as","for","with","was","were","be","by","on","this","which","or","from","at","an","are","has","have","had","but","not"]);
+
+async function fetchWordList() {
+  try {
+    const response = await fetch("https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english.txt");
+    const text = await response.text();
+    text.split("\n").forEach((word, idx) => {
+      word = word.trim().toLowerCase();
+      if (word) commonWords.set(word, idx + 1);
+    });
+    wordListLoaded = true;
+  } catch (err) { console.error("Error loading word list:", err); }
+}
+fetchWordList();
+
+function splitIntoParagraphs(text) { return text.split(/\n\s*\n+/).filter(Boolean); }
+function splitIntoSentences(text) { return text.replace(/\n+/g, " ").match(/[^.!:\]?]+[.!:\]?]?/g) || []; }
+function tokenize(text) { return text.toLowerCase().match(/\b[a-z']+\b/gi) || []; }
+
+function getWordWeight(word) {
+  const clean = word.toLowerCase();
+  if (stopWords.has(clean)) return 0;
+  const rank = commonWords.get(clean);
+  if (!rank) return 1.5; 
+  if (rank <= 2000) return 0.5;
+  if (rank <= 6000) return 1.0;
+  return 1.2;
+}
+
+function getSentenceScore(words) {
+  if (!words.length) return 0;
+  return words.reduce((acc, w) => acc + getWordWeight(w), 0) / words.length;
+}
+
+function getZinsserPreview(sentence) {
+  let clean = sentence;
+  const transforms = [
+    { reg: /\bin order to\b/gi, rep: "to" },
+    { reg: /\bdue to the fact that\b/gi, rep: "because" },
+    { reg: /\bit is important to note that\b/gi, rep: "" },
+    { reg: /\bthe existence of\b/gi, rep: "" },
+    { reg: /\butilize\b/gi, rep: "use" },
+    { reg: /\b(is|are) indicative of\b/gi, rep: "shows" },
+    { reg: /\bactual facts\b/gi, rep: "facts" },
+    { reg: /\bcompletely\s|really\s|very\s/gi, rep: "" }
+  ];
+  transforms.forEach(t => clean = clean.replace(t.reg, t.rep));
+  return clean.replace(/\s\s+/g, ' ').trim();
+}
+
+function copyCleanText(btn, workbench) {
+  let textOut = "";
+  const nodes = workbench.childNodes;
+  nodes.forEach(node => {
+    if (node.classList && node.classList.contains('editable-word')) {
+      if (!node.classList.contains('muted-word')) {
+        textOut += node.textContent + " ";
+      }
+    } else if (node.tagName === 'BR') {
+      textOut = textOut.trim() + "\n";
+    }
+  });
+
+  const cleanResult = textOut.replace(/[ ]+/g, ' ').trim();
+  
+  navigator.clipboard.writeText(cleanResult).then(() => {
+    const originalText = btn.textContent;
+    btn.textContent = "Copied!";
+    btn.style.background = "#2e7d32";
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = "#4caf50";
+    }, 1500);
+  });
+}
+
+function updateLiveMetrics(box) {
+  const words = box.querySelectorAll('.editable-word:not(.muted-word)');
+  let count = 0;
+  let totalWeight = 0;
+  words.forEach(span => {
+    count++;
+    totalWeight += getWordWeight(span.textContent);
+  });
+  const avgNovelty = count > 0 ? (totalWeight / count).toFixed(2) : 0;
+  const counterLabel = box.parentElement.querySelector('.live-counter');
+  if(counterLabel) counterLabel.textContent = `Live: ${count} words | Density Score: ${avgNovelty}`;
+}
+
+function renderSentence(sentence, parentEl) {
+  const origWords = tokenize(sentence);
+  const container = document.createElement("div");
+  container.className = "sentence-container";
+
+  // Create Close Button
+  const closeBtn = document.createElement("div");
+  closeBtn.className = "close-btn";
+  closeBtn.innerHTML = "&times;";
+  closeBtn.title = "Dismiss sentence";
+  closeBtn.onclick = () => container.remove();
+  container.appendChild(closeBtn);
+
+  const textDiv = document.createElement("div");
+  textDiv.className = "sentence-text";
+
+  const colorClass = origWords.length > 25 ? "bad-length" : (origWords.length > 18 ? "mid-length" : "good-length");
+
+  const highlighted = sentence.split(/\b/).map(w => {
+    const clean = w.toLowerCase().replace(/[^a-z']/g, "");
+    if (["would", "could", "might", "should"].includes(clean)) return `<span class="modal-verb">${w}</span>`;
+    if (clean && !stopWords.has(clean) && !commonWords.has(clean)) return `<span class="problem-word">${w}</span>`;
+    return w;
+  }).join("");
+
+  textDiv.innerHTML = `<div class="${colorClass}"><strong>Original (${origWords.length} words):</strong><br>${highlighted}</div>`;
+
+  const workbench = document.createElement("div");
+  workbench.className = "preview-box";
+  
+  const zinsserText = getZinsserPreview(sentence);
+  zinsserText.split(" ").forEach(word => {
+    const bp = document.createElement("span");
+    bp.innerHTML = " ⏎ ";
+    bp.className = "breakpoint";
+    bp.onclick = () => {
+      bp.classList.toggle("active-br");
+      if (bp.nextSibling && bp.nextSibling.tagName === "BR") { bp.nextSibling.remove(); } 
+      else { bp.after(document.createElement("br")); }
+      updateLiveMetrics(workbench);
+    };
+    
+    const wSpan = document.createElement("span");
+    wSpan.textContent = word;
+    wSpan.className = "editable-word";
+    wSpan.onclick = () => {
+      wSpan.classList.toggle("muted-word");
+      updateLiveMetrics(workbench);
+    };
+
+    workbench.appendChild(bp);
+    workbench.appendChild(wSpan);
+    workbench.appendChild(document.createTextNode(" "));
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "controls-row";
+  
+  const counter = document.createElement("div");
+  counter.className = "live-counter";
+  
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "copy-btn";
+  copyBtn.textContent = "Copy Clean Text";
+  copyBtn.onclick = () => copyCleanText(copyBtn, workbench);
+
+  controls.appendChild(counter);
+  controls.appendChild(copyBtn);
+  
+  textDiv.appendChild(workbench);
+  textDiv.appendChild(controls);
+  updateLiveMetrics(workbench);
+
+  container.appendChild(textDiv);
+  parentEl.appendChild(container);
+  return getSentenceScore(origWords);
+}
+
+function analyze() {
+  if (!wordListLoaded) return alert("Still loading word list...");
+  const output = document.getElementById("output");
+  output.innerHTML = "";
+  const paras = splitIntoParagraphs(document.getElementById("inputText").value);
+
+  paras.forEach((pText, pIdx) => {
+    const pDiv = document.createElement("div");
+    pDiv.className = "para-container";
+    
+    // --- New: Paragraph Close Button ---
+    const closePara = document.createElement("div");
+    closePara.className = "close-btn"; // Reusing your existing close-btn style
+    closePara.style.fontSize = "22px"; // Making it slightly larger than the sentence one
+    closePara.innerHTML = "&times;";
+    closePara.onclick = () => pDiv.remove();
+    pDiv.appendChild(closePara);
+    // ------------------------------------
+
+    const sentences = splitIntoSentences(pText);
+    const scores = [];
+    sentences.forEach(s => scores.push(renderSentence(s, pDiv)));
+
+    const avgScore = scores.reduce((a,b) => a+b, 0) / scores.length;
+    const isStalled = scores.length > 2 && (scores[scores.length-1] < scores[0]);
+    
+    const header = document.createElement("div");
+    header.className = "para-header";
+    header.style.color = isStalled ? "#b71c1c" : "#2e7d32";
+    header.innerHTML = isStalled ? `⚠ Paragraph Stalled (Novelty: ${avgScore.toFixed(2)})` : `✓ Paragraph Healthy (Novelty: ${avgScore.toFixed(2)})`;
+    
+    pDiv.classList.add(isStalled ? "stalled" : "healthy");
+    pDiv.prepend(header);
+    output.appendChild(pDiv);
+  });
+}
+</script>
+</body>
+</html>
