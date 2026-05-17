@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manifold: Explorer (Smooth TTS)</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+        header { padding: 20px 30px; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        
+        .sidebar { width: 300px; background: #151515; border-right: 1px solid #333; padding: 20px; display: flex; flex-direction: column; }
+        #fileSidebarList { flex: 1; overflow-y: auto; margin-top: 10px; }
+        .file-item { 
+            padding: 12px; margin-bottom: 6px; background: #222; border-radius: 4px; 
+            cursor: pointer; font-size: 0.85em; transition: 0.2s; border: 1px solid transparent;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .file-item:hover { background: #2a2a2a; border-color: #007bff; }
+        .file-item.active { background: #007bff33; border-color: #007bff; color: #fff; }
+
+        .content { flex: 1; padding: 30px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .file-zone { border: 2px dashed #444; padding: 15px; text-align: center; border-radius: 8px; cursor: pointer; }
+        
+        #result-container { 
+            flex: 1; background: #111; border: 1px solid #333; border-radius: 8px; 
+            padding: 40px; position: relative; overflow-y: auto;
+        }
+        #result-text { font-size: 1.15em; line-height: 1.8; color: #ccc; white-space: pre-wrap; }
+        .source-header { color: #00ff41; font-family: monospace; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        
+        .controls { display: flex; gap: 10px; align-items: center; background: #1a1a1a; padding: 15px; border-radius: 8px; }
+        button { padding: 10px 18px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; color: white; }
+        .btn-play { background: #28a745; }
+        .btn-stop { background: #dc3545; }
+        .btn-rand { background: #6f42c1; }
+        select { background: #333; color: white; border: 1px solid #444; padding: 8px; border-radius: 4px; }
+        .status-bar { font-family: monospace; font-size: 0.8em; color: #888; margin-left: auto; }
+    </style>
+</head>
+<body onkeydown="handleKeyPress(event)">
+
+<header>
+    <h2 style="margin:0; color:#00ff41;">MANIFOLD: EXPLORER <span id="total-stats" style="font-size: 0.4em; color: #888; margin-left: 20px;">0 FILES</span></h2>
+</header>
+
+<div class="main-layout">
+    <div class="sidebar">
+        <input type="text" id="sidebarSearch" class="search-box" placeholder="Filter library..." oninput="updateSidebar()" style="padding: 10px; background: #2a2a2a; color: white; border: 1px solid #444;">
+        <div id="fileSidebarList"></div>
+    </div>
+
+    <div class="content">
+        <div class="file-zone" onclick="document.getElementById('fileInput').click()">
+            <span id="fileLabel">[ LOAD NEW FILES ]</span>
+            <input type="file" id="fileInput" accept=".json,.txt" multiple style="display:none;" onchange="handleFiles(this.files)">
+        </div>
+
+        <div class="controls">
+            <button class="btn-play" id="playBtn" onclick="speakText()" disabled>PLAY</button>
+            <button class="btn-stop" onclick="stopSpeech()">STOP</button>
+            <button class="btn-rand" onclick="loadRandom()">RANDOM</button>
+            <select id="voice-select"></select>
+            <div class="status-bar" id="speechStatus">READY</div>
+        </div>
+
+        <div id="result-container">
+            <div class="source-header" id="sourceTitle">NO DOCUMENT SELECTED</div>
+            <div id="result-text">Upload files to begin...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let library = {}; 
+    let currentFile = null;
+    let filteredList = [];
+    let voices = [];
+    let speechQueue = [];
+    let currentIdx = 0;
+    const synth = window.speechSynthesis;
+
+    // --- Voice Loading ---
+    function loadVoices() {
+        voices = synth.getVoices();
+        document.getElementById('voice-select').innerHTML = voices
+            .map(v => `<option value="${v.name}">${v.name} (${v.lang})</option>`).join('');
+    }
+    if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    // --- File Handling ---
+    async function handleFiles(files) {
+        for (let file of files) {
+            const text = await file.text();
+            library[file.name] = file.name.endsWith(".json") ? parseJson(text) : text;
+        }
+        updateSidebar();
+    }
+
+    function parseJson(text) {
+        try {
+            const data = JSON.parse(text);
+            return Array.isArray(data) ? data.map(i => i.text || JSON.stringify(i)).join("\n\n") : (data.text || text);
+        } catch(e) { return text; }
+    }
+
+    function updateSidebar() {
+        const query = document.getElementById("sidebarSearch").value.toLowerCase();
+        const listDiv = document.getElementById("fileSidebarList");
+        listDiv.innerHTML = "";
+        filteredList = Object.keys(library).filter(name => name.toLowerCase().includes(query));
+        filteredList.forEach(name => {
+            const div = document.createElement("div");
+            div.className = "file-item" + (currentFile === name ? " active" : "");
+            div.innerText = name;
+            div.onclick = () => loadDocument(name);
+            listDiv.appendChild(div);
+        });
+        document.getElementById("total-stats").innerText = `${Object.keys(library).length} FILES`;
+    }
+
+    function loadDocument(name) {
+        stopSpeech();
+        currentFile = name;
+        document.getElementById("sourceTitle").innerText = name;
+        document.getElementById("result-text").innerText = library[name];
+        document.getElementById("playBtn").disabled = false;
+        updateSidebar();
+    }
+
+    function loadRandom() {
+        const keys = Object.keys(library);
+        if (keys.length) loadDocument(keys[Math.floor(Math.random() * keys.length)]);
+    }
+
+    // --- CORE SMOOTH TTS LOGIC ---
+    function speakText() {
+        synth.cancel(); // Stop anything currently playing
+        
+        const text = document.getElementById('result-text').innerText;
+        if (!text || text.length < 5) return;
+
+        // Break into sentences
+        speechQueue = text.match(/[^\.!\?]+[\.!\?]+/g) || [text];
+        currentIdx = 0;
+        
+        playNextChunk();
+    }
+
+    function playNextChunk() {
+        if (currentIdx >= speechQueue.length) {
+            document.getElementById("speechStatus").innerText = "FINISHED";
+            return;
+        }
+
+        const utter = new SpeechSynthesisUtterance(speechQueue[currentIdx].trim());
+        const selectedVoice = voices.find(v => v.name === document.getElementById("voice-select").value);
+        
+        if (selectedVoice) utter.voice = selectedVoice;
+        utter.rate = 1.1; // Slightly faster but natural
+
+        // KEY: Instead of a loop, we wait for 'onend' to trigger the next sentence
+        utter.onend = () => {
+            currentIdx++;
+            playNextChunk();
+        };
+
+        utter.onerror = () => synth.cancel();
+
+        document.getElementById("speechStatus").innerText = `READING: ${currentIdx + 1}/${speechQueue.length}`;
+        synth.speak(utter);
+    }
+
+    function stopSpeech() {
+        synth.cancel();
+        speechQueue = [];
+        currentIdx = 0;
+        document.getElementById("speechStatus").innerText = "STOPPED";
+    }
+
+    function handleKeyPress(e) {
+        if (e.key === " ") {
+            e.preventDefault();
+            synth.speaking ? stopSpeech() : speakText();
+        }
+    }
+</script>
+</body>
+</html>
