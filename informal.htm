@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Informality Writing Detector</title>
+<style>
+body {
+    font-family: sans-serif;
+    margin: 20px;
+}
+textarea {
+    width: 80%;
+    height: 150px;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+.sentence-output {
+    margin-top: 20px;
+    border: 1px solid #ccc;
+    padding: 10px;
+}
+.informal-score {
+    font-weight: bold;
+    margin-left: 10px;
+}    
+</style>
+<script>
+    // Here we define a list of informal words, slang, and contractions
+    const informalIndicators = [
+      "gonna", "wanna", "lol", "brb", "btw", "omg", "idk", "yolo", "cuz", "awesome",
+      "dude", "like", "y'all", "ain't", "can't", "won't", "don't", "isn't", "it's",
+      "you're", "we're", "they're", "i'm", "i've", "we've", "you've", "i'll", "we'll",
+      "you'll", "they'll", "he's", "she's", "it's", "what's", "where's", "when's",
+      "how's", "that's", "there's", "here's", "who's", "lemme", "gimme", "gotta",
+      "kinda", "sorta", "whatcha",
+    
+      "we", "us", "our", "you know", "well", "though", "so", "okay", "right", 
+      "actually", "bascially", "seriously", "i mean", "you see", "totally", 
+      "literally", "about", "absolutely", "just", 
+    ];
+    
+    // These functions analyze the text by simply parsing it into sentences and counting the number of informal words and dividing by the length of the text (in number of words). 
+    function analyzeParagraph() {
+        const paragraphInput = document.getElementById("paragraphInput");
+        const paragraph = paragraphInput.value.trim(); // Get the text and remove leading/trailing whitespace
+    
+        if (!paragraph) {
+            alert("Please enter some text in the paragraph input area.");
+            return;
+        }
+    
+        const sentences = splitIntoSentences(paragraph);
+        const outputDiv = document.getElementById("output");
+        outputDiv.innerHTML = ""; // Clear previous output
+    
+        sentences.forEach((sentence, index) => {
+            const informalityScore = calculateInformalityScore(sentence);
+            const sentenceElement = document.createElement("p");
+            sentenceElement.classList.add("sentence-output");
+            sentenceElement.innerHTML = `Sentence ${index + 1}: ${sentence} <span class="informal-score">(Informality Score: ${informalityScore.toFixed(2)})</span>`;
+            outputDiv.appendChild(sentenceElement);
+        });
+    }
+    
+    function splitIntoSentences(text) {
+        // Basic sentence splitting using a regular expression.
+        // This handles periods, question marks, and exclamation marks.
+        // It should account for "Mr. Smith" or "U.S.A."
+        // and doesn't split on them, {Link: according to Stack Overflow https://stackoverflow.com/questions/18914629/split-string-into-sentences-in-javascript}.
+        return text.split(/(?<=[.?!])\s+(?=[A-Z])/).filter(Boolean);
+    }
+    
+    function calculateInformalityScore(sentence) {
+        const words = sentence.toLowerCase().split(/\b/); // Split into words, including contractions as words
+        let informalWordCount = 0;
+    
+        for (const word of words) {
+            if (informalIndicators.includes(word.trim())) { // Check for matches in our informal word list
+                informalWordCount++;
+            }
+        }
+    
+        // A simple scoring mechanism: higher percentage of informal words means higher score
+        // User determins the dropoff they are comfortable with. 
+        const totalWords = words.filter(word => /\w/.test(word)).length; // Count only actual words
+        if (totalWords === 0) return 0; // Avoid division by zero
+    
+        return (informalWordCount / totalWords) * 100; // Return a score out of 100
+    }    
+</script>
+</head>
+<body>
+    <h1>Research Journal Formal Text Analyzer</h1>
+    <textarea id="paragraphInput" placeholder="Enter your paragraph here..."></textarea>
+    <button onclick="analyzeParagraph()">Analyze Text</button>
+    <div id="output"></div>
+</body>
+</html>
