@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LaTeX-Lite to HTML</title>
+
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    line-height: 1.4;
+    padding: 1em;
+  }
+
+  .math-lite sub,
+  .math-lite sup {
+    font-size: 0.8em;
+  }
+
+  .latex-table {
+    border-collapse: collapse;
+    margin: 0.75em 0;
+  }
+
+  .latex-table th,
+  .latex-table td {
+    border: 1px solid #999;
+    padding: 0.3em 0.6em;
+    vertical-align: middle;
+  }
+
+  textarea {
+    width: 100%;
+    height: 10em;
+    font-family: monospace;
+  }
+
+  .output {
+    border: 1px solid #ccc;
+    padding: 1em;
+    margin-top: 1em;
+    background: #fafafa;
+  }
+  .binom {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  align-items: center;
+  padding: 0 0.2em;
+  position: relative;
+  line-height: 1.1;
+  font-size: 0.9em;
+}
+
+/* Creating the large parentheses */
+.binom::before { content: "("; }
+.binom::after { content: ")"; }
+
+.binom::before, .binom::after {
+  font-size: 1.6em;
+  font-weight: 100;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-55%) scaleY(1.2);
+}
+
+.binom::before { left: -0.1em; }
+.binom::after { right: -0.1em; }
+
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  align-items: center;
+  font-size: 0.9em;
+  padding: 0 0.1em;
+}
+
+.num {
+  padding: 0 0.2em;
+}
+
+.den {
+  border-top: 1px solid black;
+  padding: 0 0.2em;
+}
+</style>
+</head>
+
+<body>
+
+<h2>LaTeX-Lite → HTML</h2>
+
+<textarea id="input">
+\sum_{i=1}^{n} x_i^2
+
+\begin{tabular}{lcr}
+\hline
+Name & Value & Error \\
+\hline
+x_i & 3.14 & \pm 0.01 \\
+y^2 & 2.71 & \pm 0.02 \\
+\hline
+\end{tabular}
+</textarea>
+
+<button onclick="render()">Render</button>
+
+<div id="output" class="output"></div>
+
+<script>
+/* ---------- utilities ---------- */
+
+function escapeHTML(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function replacePercentCommentsWithHtml(text) {
+  // Regex explanation:
+  // ^          matches the start of a line (due to the 'm' flag)
+  //\\s*       matches any optional whitespace at the beginning of the line
+  // %          matches the literal percent character
+  //\\s*       matches any optional whitespace after the percent sign
+  // (.*?)      captures the rest of the line (non-greedy match for any character)
+  // $          matches the end of the line (due to the 'm' flag)
+  // g          global flag, to replace all occurrences
+  // m          multiline flag, so ^ and $ match line start/end instead of string start/end
+
+  const regex = /^\s*%\s*(.*?)$/gm;
+  
+  // Replacement explanation:
+  // <!--      the opening HTML comment tag
+  // $1        backreference to the first (and only) captured group (the comment content)
+  // -->       the closing HTML comment tag
+
+  const result = text.replace(regex, '<!-- $1 -->');
+  return result;
+}
+
+/* ---------- symbol table ---------- */
+
+const CMD = {
+  "\\alpha": "α",
+  "\\beta": "β",
+  "\\gamma": "γ",
+  "\\delta": "δ",
+  "\\epsilon": "ε",
+  "\\theta": "θ",
+  "\\lambda": "λ",
+  "\\mu": "μ",
+  "\\pi": "π",
+  "\\sigma": "σ",
+  "\\phi": "φ",
+  "\\omega": "ω",
+
+  "\\sum": "∑",
+  "\\int": "∫",
+  "\\pm": "±",
+  "\\times": "×",
+  "\\le": "≤",
+  "\\ge": "≥",
+  "\\neq": "≠",
+  "\\mapsto": "↦",
+  "\\to": "→",
+  "\\in": "∈",
+  "\\forall": "∀",
+  "\\exists": "∃",
+  "\\infty": "∞",
+  "\\infinity": "∞",
+  "\\doublearrow": "⇒",
+  "\\leftrightdoublearrow": "⇔", 
+  "\\emptyset": "⦰",
+  "\\cup": "∪", 
+  "\\cap": "∩",
+  "\\cdot": "·",
+  "\\implies": "⇒", 
+  "\\lfloor": "⌊",
+  "\\rfloor": "⌋",
+  "\\lceil": "⌈",
+  "\\rceil": "⌉",
+  "\\dots": "…",
+  "\\sim": "∼"
+  
+};
+
+/* ---------- math-lite renderer ---------- */
+
+function renderMathLite(s) {
+//  s = escapeHTML(s);
+
+  // commands → Unicode
+  s = s.replace(/\\[a-zA-Z]+/g, m => CMD[m] ?? m);
+
+  // fractions (dumb, non-nested, stacked)
+  s = s.replace(
+  /\\frac\{([^{}]+)\}\{([^{}]+)\}/g,
+  '<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>'
+  );
+  
+  // binomials (dumb, non-nested, but visually correct)
+  s = s.replace(
+  /\\binom\{([^{}]+)\}\{([^{}]+)\}/g,
+  '<span class="binom"><span>$1</span><span>$2</span></span>'
+  );
+
+  // braced subscripts / superscripts
+  s = s.replace(/_\{([^{}]+)\}/g, "<sub>$1</sub>");
+  s = s.replace(/\^\{([^{}]+)\}/g, "<sup>$1</sup>");
+
+  // single-token subscripts / superscripts
+  s = s.replace(/_([a-zA-Z0-9+]+)/g, "<sub>$1</sub>");
+  s = s.replace(/\^([a-zA-Z0-9+]+)/g, "<sup>$1</sup>");
+  
+  // Add this inside renderMathLite
+  s = s.replace(/\\quad/g, '<span style="display:inline-block; width:1em;"></span>');
+  s = s.replace(/\\qquad/g, '<span style="display:inline-block; width:2em;"></span>');
+  
+  // Strip delimiters: $, \[, \]
+  s = s.replace(/\$|\\\[|\\\]/g, "");
+
+  return `<span class="math-lite">${s}</span>`;
+}
+
+/* ---------- tabular renderer ---------- */
+
+const TABULAR_RE =
+  /\\begin\{tabular\}\{([^}]*)\}([\s\S]*?)\\end\{tabular\}/g;
+
+function parseAlign(spec) {
+  return [...spec].map(c =>
+    c === 'l' ? 'left' :
+    c === 'c' ? 'center' :
+    c === 'r' ? 'right' :
+    null
+  ).filter(Boolean);
+}
+
+function renderTabular(latex) {
+  return latex.replace(TABULAR_RE, (_, spec, body) => {
+    const align = parseAlign(spec);
+    const rows = body
+      .replace(/\r/g, '')
+      .split(/\\\\/)
+      .map(r => r.trim())
+      .filter(Boolean);
+
+    let html = '<table class="latex-table">';
+    let section = 'tbody';
+
+    html += '<tbody>';
+
+    for (const row of rows) {
+      if (row === '\\hline') {
+        if (section === 'tbody') {
+          html += '</tbody><thead>';
+          section = 'thead';
+        } else if (section === 'thead') {
+          html += '</thead><tbody>';
+          section = 'tbody';
+        }
+        continue;
+      }
+
+      const cells = row.split('&').map(c => renderMathLite(c.trim()));
+      html += '<tr>';
+
+      cells.forEach((c, i) => {
+        const tag = section === 'thead' ? 'th' : 'td';
+        const a = align[i] ? ` style="text-align:${align[i]}"` : '';
+        html += `<${tag}${a}>${c}</${tag}>`;
+      });
+
+      html += '</tr>';
+    }
+
+    html += `</${section}></table>`;
+    return html;
+  });
+}
+
+/* ---------- main render ---------- */
+
+function render() {
+  let input = document.getElementById('input').value;
+
+  // tables first
+  let html = replacePercentCommentsWithHtml(input);
+  html = renderTabular(html);
+
+  // remaining math
+  html = html
+    .split('\n')
+    .map(line => line.includes('<table') ? line : renderMathLite(line))
+    .join('<br>');
+
+  document.getElementById('output').innerHTML = html;
+}
+
+render();
+</script>
+
+</body>
+</html>
