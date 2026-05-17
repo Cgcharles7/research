@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proof Flowchart Builder</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; padding: 20px; }
+  h2 { color: #2c3e50; }
+  #flowContainer { display:flex; gap:20px; align-items: flex-start; }
+  
+  /* Canvas Styling */
+  #flowchartCanvas { 
+    border: 2px solid #bdc3c7; 
+    background-color: #fff; 
+    border-radius: 8px; 
+    cursor: crosshair; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+
+  /* Controls Styling */
+  #controls { 
+    display:flex; flex-direction:column; gap:12px; 
+    width: 300px;
+    background: #fff; padding: 20px; border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  
+  label { font-weight: bold; font-size: 0.9em; margin-bottom: -5px;}
+  select, button { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+  button { cursor: pointer; background-color: #3498db; color: white; border: none; transition: background 0.2s; }
+  button:hover { background-color: #2980b9; }
+  button.secondary { background-color: #95a5a6; }
+  button.secondary:hover { background-color: #7f8c8d; }
+  button.random { background-color: #e67e22; }
+  
+  hr { width: 100%; border: 0; border-top: 1px solid #eee; margin: 10px 0; }
+  
+  textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; margin-top: 20px; font-family: monospace; }
+  
+  .instructions { font-size: 0.85em; color: #666; margin-top: 0; background: #e8f6f3; padding: 10px; border-radius: 4px;}
+</style>
+</head>
+<body>
+
+<h2>Proof Flowchart Builder</h2>
+
+<div id="flowContainer">
+  <div>
+    <canvas id="flowchartCanvas" width="900" height="600"></canvas>
+    <div class="instructions">
+      <strong>Controls:</strong> Drag to move. <strong>Shift + Drag</strong> from one node to another to connect. <strong>Double Click</strong> to edit text.
+    </div>
+  </div>
+
+  <div id="controls">
+    
+<hr>
+<label>1. Select Domain to View Concepts:</label>
+<div id="domainButtons" style="display:flex; flex-wrap:wrap; gap:5px;">
+    </div>
+<hr>
+
+<label>2. Concepts and Terms:</label>
+<div id="conceptContainers" style="margin-bottom: 10px;">
+    <div id="Combinatorics" class="concept-panel" style="display:none;"></div>
+    <div id="GroupTheory" class="concept-panel" style="display:none;"></div>
+    <div id="GraphTheory" class="concept-panel" style="display:none;"></div>
+    <div id="LinearProgramming" class="concept-panel" style="display:none;"></div>
+    <div id="LinearAlgebra" class="concept-panel" style="display:none;"></div>
+    <div id="NetwProg" class="concept-panel" style="display:none;"></div>
+    <div id="Statistics" class="concept-panel" style="display:none;"></div>
+    <div id="SSNC" class="concept-panel" style="display:none;"></div>
+    <div id="PaperHelp" class="concept-panel" style="display:none;"></div>
+</div>
+<textarea id="preview" rows="6"></textarea>
+<div style="font-style: italic; font-size: 0.9em; color: #666;">
+    Click a term below to add it to the canvas.
+</div>
+    <hr>
+    <label>Logic / Techniques:</label>
+    <button class="secondary" onclick="addTechniqueNode('Suppose', 'We assume the hypothesis...')">Suppose</button>
+    <button class="secondary" onclick="addTechniqueNode('If / Then', 'We assume the hypothesis...')">If / Then</button>
+    <button class="secondary" onclick="addTechniqueNode('Contradiction', 'Suppose for the sake of contradiction...')">Contradiction</button>
+    <button class="secondary" onclick="addTechniqueNode('Induction', 'We proceed by induction on n...')">Induction</button>
+    <button class="secondary" onclick="addTechniqueNode('Therefore', 'It follows that...')">Therefore</button>
+    
+    <hr>
+    <button onclick="exportJSON()">ðŸ’¾ Export JSON</button>
+    <button onclick="readProof()">ðŸ”Š Read Proof</button>
+  </div>
+</div>
+
+<h3>Generated Proof Text</h3>
+<textarea id="proofText" rows="6" placeholder="Your proof will appear here automatically..."></textarea>
+
+<script>
+const canvas = document.getElementById('flowchartCanvas');
+const ctx = canvas.getContext('2d');
+
+// State
+let elements = [];
+let connections = [];
+let dragging = null;
+let dragOffset = {x:0, y:0};
+let connecting = null;
+let mousePos = {x:0, y:0}; // For drawing the drag line
+
+// Global storage for all loaded definitions
+let masterLibrary = {};    
+
+async function loadJSON(file) {
+          console.log(file);
+          try {
+                    const response = await fetch(file);
+                    if(!response.ok) throw new Error(`Missing file: ${file}`);
+                       
+                    const data = await response.json();
+                    console.log(data);
+                       
+                    // Use Object.assign to MERGE data from all files
+                    Object.assign(masterLibrary, data);
+                       
+          } catch (error) {
+                    console.warn(`Could not load ${file}. You must run this using a local server (e.g., VS Code Live Server) to bypass browser security for file access.`, error);
+          }
+}
+
+async function initLibrary() {
+          // Load all files in parallel
+          await Promise.all([
+                    loadJSON('combin.json'),
+                    loadJSON('graphtheory.json'),
+                    loadJSON('groupthry.json'),
+                    loadJSON('prob_netw.json'), // Renamed to NetwProg in your plan
+                    loadJSON('linprog.json'),         // Renamed to LinearProg in your plan
+                    loadJSON('linearalg.json'),
+                    loadJSON('stats.json'),
+                    loadJSON('ssnc.json'),
+                    loadJSON('paperhelp.json')
+          ]);
+
+          // 1. Generate Domain Buttons and Render Concept Buttons
+          renderDomainButtonsAndConcepts();
+}
+
+// NEW: Utility function to map JSON key to HTML ID
+function getDivId(domainName) {
+          // This logic must match your HTML IDs (e.g., "Linear Algebra" -> "LinearAlg")
+          // If your JSON keys match your Div IDs (e.g., "GroupTheory" -> "GroupTheory"),    
+          // you can simplify this greatly. Based on your HTML, we'll try to guess a standard mapping.
+             
+          // Simple way based on your IDs:
+          if (domainName.includes('Combin')) return 'Combinatorics';
+          if (domainName.includes('Graph')) return 'GraphTheory';
+          if (domainName.includes('Group')) return 'GroupTheory';
+          if (domainName.includes('Linear Prog')) return 'LinearProgramming'; // Corrected to match your HTML ID
+          if (domainName.includes('Linear Alg')) return 'LinearAlgebra';               // Corrected to match your HTML ID
+          if (domainName.includes('Netw')) return 'NetwProg';
+          if (domainName.includes('Stats')) return 'Statistics';                                   // Corrected to match your HTML ID
+          if (domainName.includes('Paper')) return 'PaperHelp';
+          if (domainName.includes('ssnc')) return 'SSNC';
+             
+          // Fallback if none match (allows for flexibility, assuming JSON keys are concise)
+          return domainName.replace(/[^a-zA-Z0-9]/g, '');    
+}
+
+function renderDomainButtonsAndConcepts() {
+          const domainButtonContainer = document.getElementById('domainButtons');
+          domainButtonContainer.innerHTML = '';
+    const previewTextArea = document.getElementById('preview');
+    previewTextArea.placeholder = "Select a concept from the dropdown to see its definition (the 'value').";
+             
+          // Iterate through all loaded domains
+          Object.keys(masterLibrary).forEach(domainName => {
+                    const domainData = masterLibrary[domainName];
+                    const panelId = getDivId(domainName);
+                    const panelDiv = document.getElementById(panelId);
+
+                    if (!panelDiv) {
+                              console.warn(`Panel div with ID #${panelId} not found for domain: ${domainName}`);
+                              return;
+                    }
+
+                    // A. Create the Domain Selection Button (Same as before)
+                    const domainButton = document.createElement('button');
+                    domainButton.innerText = domainName;
+                    domainButton.className = 'secondary';
+                    domainButton.onclick = () => toggleConceptView(panelId);
+                    domainButtonContainer.appendChild(domainButton);
+
+                    // B. Populate the Hidden Concept Panel with a SELECT box
+                    panelDiv.innerHTML = ''; // Clear previous content
+                       
+                    // 1. Create the Label and Select Element
+                    const label = document.createElement('label');
+                    label.innerText = `Select ${domainName} Term:`;
+                    label.style.display = 'block'; // Make it stand out
+                       
+                    const select = document.createElement('select');
+                    select.id = `select-${panelId}`; // Give it a unique ID for later use
+                    select.style.width = '100%';
+                    select.style.marginBottom = '10px';
+                       
+                    // Add a default prompt option
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = "";
+                    defaultOption.text = "-- Choose a Concept --";
+                    select.appendChild(defaultOption);
+
+                    // Populate the select box with concepts
+                    Object.entries(domainData).forEach(([termName, termDefinition]) => {
+                              const option = document.createElement('option');
+                              option.value = termDefinition; // The value holds the long definition
+                              option.text = termName;                    // The text is the short term name
+                              option.dataset.term = termName; // Store the key (term name) in a dataset attribute
+                              select.appendChild(option);
+                    });
+        
+        // **********************************************
+        // ************* NEW CODE BLOCK: Preview ************
+        // **********************************************
+        select.addEventListener('change', () => {
+            const selectedOption = select.options[select.selectedIndex];
+            const termName = selectedOption.dataset.term; // Get the key (term name)
+            const termDef = selectedOption.value; // Get the value (definition)
+
+            if (termDef) {
+                previewTextArea.value = `KEY (Term Name):\n${termName}\n\nVALUE (Definition/Sentence):\n${termDef}`;
+            } else {
+                previewTextArea.value = '';
+                previewTextArea.placeholder = "Select a concept from the dropdown to see its definition (the 'value').";
+            }
+        });
+        // **********************************************
+        // **********************************************
+
+                    // 2. Create the Add Node Button
+                    const addButton = document.createElement('button');
+                    addButton.innerText = `Add Selected ${domainName} Node`;
+                       
+                    // Use an anonymous function to read the selected value from the specific select box
+                    addButton.onclick = () => {
+                              const selectedOption = select.options[select.selectedIndex];
+                              const termName = selectedOption.text;
+                              const termDef = selectedOption.value;
+                                 
+                              if (!termDef) return alert("Please select a concept from the list first.");
+                                 
+                              createNode('concept', termName, termDef);
+            // Clear the preview area after adding the node
+            previewTextArea.value = '';
+            previewTextArea.placeholder = "Select a concept from the dropdown to see its definition (the 'value').";
+                    };
+                    
+                    const rdmButton = document.createElement('button');
+                    rdmButton.innerText = `Randomly Select From  ${domainName}`;
+                       
+                    // Use an anonymous function to read the selected value from the specific select box
+                    rdmButton.onclick = () => {
+                            let loc = Math.floor(Math.random() * select.length)
+                            let optVal = select.options[loc];
+                            select[loc].selected = true;
+                            
+//                            alert(optVal.text + optVal.value);
+
+//                              const selectedOption = select.options[select.selectedIndex];
+                              const termName = optVal.text;
+                              const termDef = optVal.value;
+                                 
+//                             if (!termDef) return alert("Please select a concept from the list first.");
+                            
+                                 
+//                              createNode('concept', termName, termDef);
+            // Clear the preview area after adding the node
+            previewTextArea.value = '';
+            previewTextArea.value += termName + " - " + termDef;
+//            previewTextArea.placeholder = "Select a concept from the dropdown to see its definition (the 'value').";
+                    };
+                       
+                    // 3. Append elements to the panel div
+                    panelDiv.appendChild(label);
+                    panelDiv.appendChild(select);
+                    panelDiv.appendChild(addButton);
+                    panelDiv.appendChild(rdmButton);
+          });
+             
+          // Set the initial view (show the first one or none)
+          const firstDomainKey = Object.keys(masterLibrary)[0];
+          if (firstDomainKey) {
+                    toggleConceptView(getDivId(firstDomainKey));
+          }
+}
+
+// ----------------------------------------------------
+// --- TOGGLE FUNCTIONALITY ---
+// ----------------------------------------------------
+
+function toggleConceptView(showId) {
+          const panels = document.querySelectorAll('.concept-panel');
+          const domainButtons = document.querySelectorAll('#domainButtons button');
+    const previewTextArea = document.getElementById('preview');
+
+          // Hide all panels and deactivate all domain buttons
+          panels.forEach(panel => {
+                    panel.style.display = 'none';
+          });
+          domainButtons.forEach(button => {
+                    button.style.backgroundColor = '#95a5a6'; // secondary color
+                    button.style.color = 'white';
+          });
+
+          // Show the selected panel and activate its button
+          const selectedPanel = document.getElementById(showId);
+          if (selectedPanel) {
+                    selectedPanel.style.display = 'block';
+                       
+                    // Find and highlight the corresponding button
+                    domainButtons.forEach(button => {
+                              // Check if the button's onClick references the panel's ID
+                              if (button.onclick && button.onclick.toString().includes(`'${showId}'`)) {
+                                        button.style.backgroundColor = '#2980b9'; // Active color
+                              }
+                    });
+          }
+    // Clear preview when switching domains
+    previewTextArea.value = '';
+    previewTextArea.placeholder = "Select a concept from the dropdown to see its definition (the 'value').";
+}
+
+
+
+// --- 3. Node Management and Creation ---
+
+function generateChallenge() {
+          const challenge = randomChallenges[Math.floor(Math.random() * randomChallenges.length)];
+          document.getElementById('challengeDisplay').innerText = `Goal: ${challenge}`;
+}
+
+function addTechniqueNode(label, sentence) {
+          createNode('technique', label, sentence);
+}
+
+function createNode(type, text, description) {
+          const node = {
+                    id: Date.now(),
+                    type: type,
+                    text: text,                    // Display label
+                    desc: description, // Full sentence for the proof text
+                    x: 100 + Math.random() * 200,
+                    y: 100 + Math.random() * 200,
+                    w: 120, h: 50
+          };
+          elements.push(node);
+          drawCanvas();
+          updateProofText(node);
+}
+
+// --- 4. Proof Text Generator ---
+function updateProofText(node) {
+          const textArea = document.getElementById('proofText');
+             
+         
+//          const sorted = [...elements].sort((a,b) => a.id - b.id);
+             
+//          let proof = sorted.map(node => ).join("\n");
+             
+//          console.log("sorted = ", sorted)
+//          console.log("proof = ", proof);
+          textArea.value += node.desc + '\n';
+}
+
+// --- 5. Canvas Interactions (No change, left for completeness) ---
+
+canvas.addEventListener('mousedown', e => {
+          const pos = getMousePos(e);
+          for(let i=elements.length-1; i>=0; i--){
+                    const el = elements[i];
+                    if(isInside(pos, el)) {
+                              if(e.shiftKey) { connecting = el; }    
+                              else { dragging = el; dragOffset.x = pos.x - el.x; dragOffset.y = pos.y - el.y; }
+                              return;
+                    }
+          }
+});
+
+canvas.addEventListener('mousemove', e => {
+          mousePos = getMousePos(e);
+          if(dragging) {
+                    dragging.x = mousePos.x - dragOffset.x;
+                    dragging.y = mousePos.y - dragOffset.y;
+                    drawCanvas();
+          } else if(connecting) {
+                    drawCanvas();
+          }
+});
+
+canvas.addEventListener('mouseup', e => {
+          if(connecting) {
+                    const pos = getMousePos(e);
+                    for(let el of elements) {
+                              if(el !== connecting && isInside(pos, el)) {
+                                        if(!connections.some(c => c.from === connecting.id && c.to === el.id)){
+                                                  connections.push({from: connecting.id, to: el.id});
+                                        }
+                                        break;
+                              }
+                    }
+                    connecting = null;
+          }
+          dragging = null;
+          updateProofText();
+          drawCanvas();
+});
+
+canvas.addEventListener('dblclick', e => {
+          const pos = getMousePos(e);
+          for(let el of elements){
+                    if(isInside(pos, el)){
+                              const newDesc = prompt("Edit the full proof sentence for this step:", el.desc);
+                              if(newDesc !== null) {
+                                        el.desc = newDesc;
+                                        updateProofText();
+                              }
+                              return;
+                    }
+          }
+});
+
+function getMousePos(evt) {
+          const rect = canvas.getBoundingClientRect();
+          return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+}
+
+function isInside(pos, node) {
+          return pos.x >= node.x && pos.x <= node.x + node.w &&
+                             pos.y >= node.y && pos.y <= node.y + node.h;
+}
+
+// --- 6. Drawing Functions (No change, left for completeness) ---
+
+function drawCanvas() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.strokeStyle = '#555';
+          ctx.lineWidth = 2;
+          connections.forEach(c => {
+                    const from = elements.find(el => el.id === c.from);
+                    const to = elements.find(el => el.id === c.to);
+                    if(from && to) drawArrow(from, to);
+          });
+
+          if(connecting) {
+                    ctx.beginPath();
+                    ctx.moveTo(connecting.x + connecting.w/2, connecting.y + connecting.h/2);
+                    ctx.lineTo(mousePos.x, mousePos.y);
+                    ctx.strokeStyle = '#999';
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+          }
+          elements.forEach(drawNode);
+}
+
+function drawArrow(from, to) {
+          const startX = from.x + from.w/2;
+          const startY = from.y + from.h/2;
+          const endX = to.x + to.w/2;
+          const endY = to.y + to.h/2;
+          const headlen = 10;    
+          const angle = Math.atan2(endY - startY, endX - startX);
+
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.strokeStyle = "#333";
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+          ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+          ctx.fillStyle = "#333";
+          ctx.fill();
+}
+
+function drawNode(node) {
+          ctx.fillStyle = node.type === 'technique' ? '#d5f5e3' : '#d6eaf8';
+          ctx.strokeStyle = node.type === 'technique' ? '#2ecc71' : '#3498db';
+             
+          ctx.fillRect(node.x, node.y, node.w, node.h);
+          ctx.strokeRect(node.x, node.y, node.w, node.h);
+
+          ctx.fillStyle = '#000';
+          ctx.font = '14px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+             
+          const centerX = node.x + node.w / 2;
+          const centerY = node.y + node.h / 2;
+          let text = node.text;
+          if(ctx.measureText(text).width > node.w - 10) {
+                    text = text.substring(0, 12) + "...";
+          }
+          ctx.fillText(text, centerX, centerY);
+}
+
+// --- 7. Utilities (Export/Read Proof) ---
+function exportJSON() {
+          const data = { nodes: elements, connections };
+          const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = "proof_flowchart.json";
+          a.click();
+}
+
+function readProof() {
+          const text = document.getElementById('proofText').value;
+          if(!text) return;
+          const utter = new SpeechSynthesisUtterance(text);
+          speechSynthesis.speak(utter);
+}
+
+// --- START UP ---
+initLibrary();
+drawCanvas();
+</script>
+</body>
+</html>
