@@ -1,0 +1,356 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="AfterMath">
+<title>Text To Speech Reader</title>
+<script type="text/javascript">
+async function loadVoices() 
+{
+	if(typeof speechSynthesis === 'undefined') 
+	{
+	    console.log("problem")
+		return;
+	}
+
+    let temp = window.speechSynthesis;
+    
+    console.log(temp);
+
+	voices = window.speechSynthesis.getVoices();
+	
+
+	for(i = 0; i < voices.length ; i++) 
+	{
+	    console.log(i);
+		var option = document.createElement('option');
+		option.textContent = voices[i].name + ' (' + voices[i].lang + ')';
+    
+		if (voices[i].lang.indexOf("Microsoft Zira Desktop - English") != -1)
+		{
+			option.textContent += ' -- DEFAULT';
+			option.selected = true;
+		}
+
+		option.setAttribute('data-lang', voices[i].lang);
+		option.setAttribute('data-name', voices[i].name);
+		gebi("voice").appendChild(option);
+	}
+}
+
+var sessionLog = [];
+
+function speak() {
+    // 1. Cancel any current speech to prevent overlapping on mobile
+    window.speechSynthesis.cancel();
+
+    // 2. Determine the text to be spoken (Original Logic)
+    var textToSpeak;
+    if (gebi("textLoc").options[0].selected) {
+        textToSpeak = gebi('text').value;
+    } else {
+        textToSpeak = gebi('poem2').textContent;
+    }
+
+    // --- LOGGING IMPLEMENTATION ---
+    var logEntry = {
+        text: textToSpeak,
+        timestamp: new Date().toLocaleString()
+    };
+    sessionLog.push(logEntry);
+    console.log("Logged: " + logEntry.text.substring(0, 30) + "...");
+
+    // 3. Chunking Logic
+    // This regex splits by punctuation (. ! ?) but keeps the punctuation with the sentence.
+    // It also filters out empty strings.
+    var chunks = textToSpeak.match(/[^\.!\?]+[\.!\?]+|[^\.!\?]+/g) || [textToSpeak];
+
+    // 4. Get current settings once to apply to all chunks
+    var vol = parseFloat(gebi('volume').value);
+    var rate = parseFloat(gebi('rate').value);
+    var pitch = parseFloat(gebi('pitch').value);
+    var selectedOption = gebi("voice").selectedOptions[0].getAttribute('data-name');
+    var selectedVoice = voices.find(v => v.name === selectedOption);
+
+    // 5. Queue each chunk
+    chunks.forEach((chunkText) => {
+        var msg = new SpeechSynthesisUtterance(chunkText.trim());
+        
+        msg.volume = vol;
+        msg.rate = rate;
+        msg.pitch = pitch;
+        
+        if (selectedVoice) {
+            msg.voice = selectedVoice;
+        }
+
+        // Note: On some mobile browsers, speech only triggers 
+        // if the very first chunk is called directly inside a user-click event.
+        window.speechSynthesis.speak(msg);
+    });
+}
+
+function downloadLog() {
+    // 1. Format the log array into a string
+    var logText = "--- Speech Session Log ---\n";
+    logText += "Date of Download: " + new Date().toLocaleString() + "\n\n";
+
+    sessionLog.forEach(function(entry, index) {
+        // Format each entry: [Index] [Timestamp] - Text...
+        logText += "[" + (index + 1) + "] " + entry.timestamp + " -\n";
+        logText += entry.text + "\n---\n";
+    });
+
+    // 2. Create a Blob (Binary Large Object) from the log string
+    var blob = new Blob([logText], { type: 'text/plain' });
+
+    // 3. Create a temporary <a> tag for the download
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'speech_log_' + Date.now() + '.txt'; // Unique filename
+    
+    // 4. Trigger the download
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    // Clean up the object URL
+    URL.revokeObjectURL(a.href);
+    
+    console.log("Session log download triggered.");
+}
+
+function loadPoems() 
+{
+	for(i = 0; i < poems.length ; i++) 
+	{
+		var option = document.createElement('option');
+		var title = poems[i].split("<br>")[0];
+		title = title.substring(3, title.length- 4);
+		option.textContent = title;
+		option.value = i;
+    
+		if (i == 0)
+		{
+			option.selected = true;
+		}
+
+		gebi("poemSel").appendChild(option);
+	}
+}
+
+function change()
+{
+	window.speechSynthesis.pause();
+	msg.volume = parseFloat(gebi('volume').value);
+	msg.rate = parseFloat(gebi('rate').value);
+	msg.pitch = parseFloat(gebi('pitch').value);
+	window.speechSynthesis.resume();
+}
+
+function print(text)
+{
+	gebi("output").innerHTML += text + "<br>";
+}
+
+function splitChaps()
+{
+	var text = gebi("text").value;
+	var splitters = [];
+	for (i = 1; i <= 10; i++)
+	{
+		if (gebi("chk" + i).checked)
+		{
+			splitters.push(gebi("chk" + i).value);
+		}
+	}
+	
+	if (gebi("chk11").checked && gebi("chk11val").value != "")
+	{
+		splitters.push(gebi("chk11val").value);
+	}
+	
+	var splStr = "";
+	for (i = 0; i < splitters.length; i++)
+	{
+		splStr += splitters[i];
+		if (i < splitters.length - 1)
+		{
+			splStr += "|";
+		}
+	}
+	splStr = new RegExp(splStr, "g");
+	
+	var sents2 = text.split(/\.|\n|,/g);
+	var sents = text.split(splStr);
+	for (var i = 0; i < sents.length; i++)
+	{		
+		if (sents[i].trim().length == 0)
+		{
+			sents.splice(i, 1);
+			i--;
+		}
+	}
+	
+	//Create and append select list
+	var selectList = document.createElement("select");
+	selectList.id = "bookchaps";
+	selectList.onchange = function(){document.getElementById("text").value=chaps[document.getElementById("bookchaps").value];document.getElementById("poem2").innerHTML=chaps[document.getElementById("bookchaps").value];document.getElementById("textLoc").options[1].selected = true;window.speechSynthesis.cancel();speak()}
+	var myDiv = document.getElementById("myDiv");
+	myDiv.innerHTML = "";
+	myDiv.appendChild(selectList);
+
+	//Create and append the options
+	for (var i = 0; i < sents.length; i++) 
+	{
+		var option = document.createElement("option");
+		option.value = i;
+		option.text = sents[i].substring(0, 100);
+		selectList.appendChild(option);
+	}
+	
+	return sents;
+}
+
+function gebi(id)
+{
+	return document.getElementById(id);
+}
+
+
+function updateTbl()
+{
+	var tbl = gebi("outtbl");
+	var out = tbl.insertRow(0);
+	var chcnt = out.insertCell(0);
+	var wdcnt = out.insertCell(1);
+	var pgcnt = out.insertCell(2);
+	var sncnt = out.insertCell(3);
+	
+	chcnt.innerHTML = gebi("text").value.length + " characters";
+	wdcnt.innerHTML = gebi("text").value.split(" ").length + " words";
+	pgcnt.innerHTML = gebi("text").value.split("\n").length + " paragraphs";
+	sncnt.innerHTML = gebi("text").value.split(".").length + " sentences";
+}
+
+function playRandom()
+{
+	window.speechSynthesis.cancel();
+	var items;
+	if (gebi("chk11val").value != "")
+		items = gebi("text").value.split(gebi("chk11val").value);
+	else
+		items = gebi("text").value.split("\r\n\r\n");
+	var rem = [];
+	for (var i = 0; i < items.length; i++)
+	{
+		rem.push(i);
+	}
+	var items2 = [];
+	
+	for (var i = 0; i < items.length; i++)
+	{
+		var loc = Math.floor(Math.random() * rem.length);
+		items2.push(rem[loc]);
+		rem.splice(loc, 1);
+	}
+	
+	var out = "";
+	
+	for (var i = 0; i < items2.length; i++)
+	{
+		out += items[items2[i]] + "\n";
+	}
+	
+	gebi("text").value = out;
+	speak();
+}
+
+</script>
+</head>
+<body>
+<input type="button" onclick="speak();" value="Play">
+<input type="button" onclick="window.speechSynthesis.pause();" value="Pause">
+<input type="button" onclick="window.speechSynthesis.resume();" value="Resume">
+<input type="button" onclick="window.speechSynthesis.cancel();" value="Stop"><br>
+<div class="option">
+	<label for="voice">Voice</label>
+	<select name="voice" id="voice">
+	    <option data-lang="en-US" data-name="Microsoft David Desktop - English (United States)">Microsoft David Desktop - English (United States) (en-US) -- DEFAULT</option>
+	    <option data-lang="en-US" data-name="Microsoft Zira Desktop - English (United States)" selected>Microsoft Zira Desktop - English (United States) (en-US) -- DEFAULT</option>
+	    <option data-lang="de-DE" data-name="Google Deutsch">Google Deutsch (de-DE)</option>
+	    <option data-lang="en-US" data-name="Google US English">Google US English (en-US) -- DEFAULT</option>
+	    <option data-lang="en-GB" data-name="Google UK English Female">Google UK English Female (en-GB)</option>
+	    <option data-lang="en-GB" data-name="Google UK English Male">Google UK English Male (en-GB)</option>
+	    <option data-lang="es-ES" data-name="Google español">Google español (es-ES)</option>
+	    <option data-lang="es-US" data-name="Google español de Estados Unidos">Google español de Estados Unidos (es-US)</option>
+	    <option data-lang="fr-FR" data-name="Google français">Google français (fr-FR)</option>
+	    <option data-lang="hi-IN" data-name="Google हिन्दी">Google हिन्दी (hi-IN)</option>
+	    <option data-lang="id-ID" data-name="Google Bahasa Indonesia">Google Bahasa Indonesia (id-ID)</option>
+	    <option data-lang="it-IT" data-name="Google italiano">Google italiano (it-IT)</option>
+	    <option data-lang="ja-JP" data-name="Google 日本語">Google 日本語 (ja-JP)</option>
+	    <option data-lang="ko-KR" data-name="Google 한국의">Google 한국의 (ko-KR)</option>
+	    <option data-lang="nl-NL" data-name="Google Nederlands">Google Nederlands (nl-NL)</option>
+	    <option data-lang="pl-PL" data-name="Google polski">Google polski (pl-PL)</option>
+	    <option data-lang="pt-BR" data-name="Google português do Brasil">Google português do Brasil (pt-BR)</option>
+	    <option data-lang="ru-RU" data-name="Google русский">Google русский (ru-RU)</option>
+	    <option data-lang="zh-CN" data-name="Google 普通话（中国大陆）">Google&nbsp;普通话（中国大陆） (zh-CN)</option>
+	    <option data-lang="zh-HK" data-name="Google 粤語（香港）">Google&nbsp;粤語（香港） (zh-HK)</option>
+	    <option data-lang="zh-TW" data-name="Google 國語（臺灣）">Google 國語（臺灣） (zh-TW)</option>
+	    </select>
+<button onclick="downloadLog()">Download Log</button>.
+</div>
+<table>
+<tr><td><div class="option">
+	<label for="volume">Volume</label>
+	<input type="range" min="0" max="1" step="0.1" name="volume" id="volume" value="1" onchange="document.getElementById('voltxt').innerHTML=this.value">
+</div></td><td><p id="voltxt">1</p></td></tr>
+<tr><td><div class="option">
+	<label for="rate">Rate</label>
+	<input type="range" min="0.1" max="10" step="0.1" name="rate" id="rate" value="2" onchange="document.getElementById('rattxt').innerHTML=this.value">
+</div></td><td><p id="rattxt">2</p></td></tr>
+<tr><td><div class="option">
+	<label for="pitch">Pitch</label>
+	<input type="range" min="0" max="2" step="0.1" name="pitch" id="pitch" value="1" onchange="document.getElementById('rantxt').innerHTML=this.value">
+</div></td><td><p id="rantxt">1</p></td></tr>
+</table>
+<table>
+<tr><td>
+<textarea id="text" style="margin: 0px; width: 600px; height: 350px;" onchange="updateTbl()">This is a test</textarea>
+</td><td>
+<p id="poem2"></p></td></tr></table>
+<div id="txtlen"></div>
+<div id="myDiv"></div>
+<input type="button" onclick="showHideDiv('adv');" value="Advanced">
+<p id="output"></p>
+<table id="outtbl"></table>
+<div id="advs" style="display:none;">
+  <label>Splitters</label>
+  <ul>
+    <li><input type="checkbox" id="chk1" value="\n">End-of-line Character (\n)</li>
+    <li><input type="checkbox" id="chk2" value="\\\.">Period (.)</li>
+    <li><input type="checkbox" id="chk3" value=",">Comma (,)</li>
+    <li><input type="checkbox" id="chk4" value=";">Semicolon (;)</li>
+	<li><input type="checkbox" id="chk5" value="!">Exclamation Point (!)</li>
+	<li><input type="checkbox" id="chk6" value="?">Question Mark(?)</li>
+	<li><input type="checkbox" id="chk7" value="<br>">&lt;br&gt;</li>
+	<li><input type="checkbox" id="chk8" value="<b>|</b>">Bold tags</li>
+	<li><input type="checkbox" id="chk9" value="<br><br>">&lt;br&gt;&lt;br&gt;</li>
+	<li><input type="checkbox" id="chk10" value="Chapter">Chapter</li>
+	<li><input type="checkbox" id="chk11">Custom: <input id="chk11val"></li>
+  </ul>
+<select id="textLoc">
+<option value="L">TextArea</option>
+<option value="R">Paragraph</option>
+</select>
+<input type="button" onclick="chaps=splitChaps();" value="Split Chapters">
+</div>
+<script type="text/javascript">
+	loadVoices();
+	window.speechSynthesis.onvoiceschanged = function(e) 
+	{
+        loadVoices();
+	};
+</script>
+
+</body></html>
