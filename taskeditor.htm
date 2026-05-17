@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Strategic Task Planner</title>
+<style>
+/* ==========================================================================
+   1. Theming with CSS Custom Properties
+   ========================================================================== */
+
+/* Defines color variables for a consistent look.
+   This makes it easy to implement a dark mode later. */
+:root {
+  --color-text-primary: #333;
+  --color-text-secondary: #777;
+  --color-bg-primary: #fff;
+  --color-bg-secondary: #f0f2f5;
+  --color-border-primary: #ddd;
+  --color-border-secondary: #ccc;
+  --color-accent: #007bff;
+  --color-accent-hover: #0056b3;
+  --color-task-bg: #fff;
+  --color-task-border: #aaa;
+  --color-task-shadow: rgba(0, 0, 0, 0.1);
+  --color-delete-button: #dc3545;
+  --color-connect-button: #20c997;
+  --color-selected: #007bff;
+  --font-family-primary: 'Inter', system-ui, sans-serif;
+  --font-family-mono: 'Fira Code', 'JetBrains Mono', monospace;
+  --task-padding: 10px;
+}
+
+/* ==========================================================================
+   2. Base Styles
+   ========================================================================== */
+
+body {
+  font-family: var(--font-family-primary);
+  margin: 0;
+  display: flex;
+  height: 100vh;
+  color: var(--color-text-primary);
+}
+
+textarea {
+  font-family: var(--font-family-mono);
+}
+
+/* ==========================================================================
+   3. Panel Layout
+   ========================================================================== */
+
+#leftPanel {
+  width: 280px;
+  border-right: 2px solid var(--color-border-primary);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-primary);
+}
+
+#rightPanel {
+  flex: 1;
+  position: relative;
+  background: var(--color-bg-secondary);
+  overflow: auto; /* Corrected: use `auto` for cleaner scrollbars */
+  min-width: 2000px;
+  min-height: 2000px;
+}
+
+#boardContent {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+#connections {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   4. Buttons and Interactive Elements
+   ========================================================================== */
+
+.button {
+  margin: 5px 0;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.button:hover {
+  background-color: var(--color-border-primary);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button--accent {
+  background-color: var(--color-accent);
+  color: #fff;
+}
+
+.button--accent:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.button--connect {
+  background: var(--color-connect-button);
+  color: #fff;
+}
+
+.button--connect:hover {
+  background: #1e7e34;
+}
+
+.button--disconnect {
+  background: var(--color-delete-button);
+  color: #fff;
+}
+
+.button--disconnect:hover {
+  background: #c82333;
+}
+
+/* Add custom class for styling button icons, e.g., for the trash can */
+.button__icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+
+/* ==========================================================================
+   5. Task Cards (Using BEM for component-based styling)
+   ========================================================================== */
+
+.task {
+  position: absolute;
+  width: 300px;
+  background: var(--color-task-bg);
+  border: 1px solid var(--color-task-border);
+  border-radius: 8px;
+  padding: var(--task-padding);
+  cursor: move;
+  box-shadow: 2px 2px 8px var(--color-task-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.task:hover {
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.task--selected {
+  border: 2px solid var(--color-selected);
+  box-shadow: 0 0 0 2px var(--color-selected);
+  z-index: 10; /* Bring selected task to front */
+}
+
+.task__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task__title {
+  flex-grow: 1;
+  font-size: 15px;
+  padding: 4px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.task__notes {
+  width: 100%;
+  font-size: 13px;
+  margin-top: 5px;
+  display: none;
+  resize: vertical;
+  min-height: 50px;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.task__notes--visible {
+  display: block;
+}
+
+.task__button--toggle-notes {
+  float: right;
+  font-size: 16px;
+  padding: 0 6px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
+.task__button--delete {
+  color: var(--color-delete-button);
+}
+
+/* ==========================================================================
+   6. SVG Connections
+   ========================================================================== */
+
+.connections__path {
+  transition: stroke-width 0.2s ease;
+}
+
+.connections__path:hover {
+  stroke-width: 3px;
+}
+
+.task input {
+  width: calc(100% - 75px);
+  font-size: 14px;
+  margin-bottom: 4px;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+.task textarea {
+  width: 100%;
+  font-size: 13px;
+  margin-top: 5px;
+  display: none; /* hidden by default */
+  resize: vertical;
+  min-height: 50px;
+}
+.task .toggleNotes {
+  float: right;
+  font-size: 16px;
+  padding: 0 6px;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+</style>
+</head>
+<body>
+
+<div id="leftPanel">
+  <h2>Strategic Task Planner</h2>
+  <button id="addTaskBtn">Add Task</button>
+  <button id="downloadBtn">Download JSON</button>
+  <button id="downloadImageBtn">Download Board Image</button>
+  <button id="connectBtn">Connect Tasks</button>
+  <button id="disconnectBtn">Disconnect Tasks</button>
+  <div id="zoomControls">
+    <button onclick="setZoom(1.2)">Zoom In</button>
+    <button onclick="setZoom(0.8)">Zoom Out</button>
+    <button onclick="resetZoom()">Reset Zoom</button>
+<select id="templateSelector" style="margin-top:10px;">
+  <option value="">-- Load Template --</option>
+  <option value="basic">Basic Workflow</option>
+  <option value="kanban">Kanban</option>
+  <option value="biblestudy">Bible Study / Sermon Notes</option>
+</select>
+
+  </div>
+  <input type="file" id="uploadJson" accept=".json">
+  <textarea id="jsonOutput" readonly style="flex:1; margin-top:10px;"></textarea>
+</div>
+
+<div id="rightPanel">
+  <div id="boardContent">
+    <svg id="connections"></svg>
+  </div>
+</div>
+
+<!-- html2canvas library for image export -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<script>
+let tasks = [];
+let connections = [];
+let counter = 1;
+let connectMode = false;
+let disconnectMode = false;
+let firstSelected = null;
+let zoom = 1;
+
+const board = document.getElementById("boardContent");
+const svg = document.getElementById("connections");
+const jsonOutput = document.getElementById("jsonOutput");
+
+// Render JSON
+function renderJSON() {
+  const data = { tasks, connections };
+  jsonOutput.value = JSON.stringify(data, null, 2);
+}
+
+// Expand board size if needed
+function expandBoard(x, y) {
+  board.style.width = Math.max(board.offsetWidth, x + 300) + "px";
+  board.style.height = Math.max(board.offsetHeight, y + 300) + "px";
+}
+
+// Ensure board fits all tasks (on load)
+function ensureBoardFitsAllTasks() {
+  let maxX = 0, maxY = 0;
+  tasks.forEach(t => {
+    maxX = Math.max(maxX, t.x + 300);
+    maxY = Math.max(maxY, t.y + 300);
+  });
+  board.style.width = Math.max(board.offsetWidth, maxX) + "px";
+  board.style.height = Math.max(board.offsetHeight, maxY) + "px";
+}
+
+// Add new task
+document.getElementById("addTaskBtn").onclick = () => {
+  const id = counter++;
+  const offset = tasks.length * 30;
+  const task = {
+    id,
+    title: "New Task " + id,
+    notes: "",
+    x: 50 + offset,
+    y: 50 + offset
+  };
+  tasks.push(task);
+  createTaskElement(task);
+  expandBoard(task.x, task.y);
+  renderJSON();
+};
+
+// Create draggable task element
+function createTaskElement(task) {
+  const div = document.createElement("div");
+  div.className = "task";
+  div.style.left = task.x + "px";
+  div.style.top = task.y + "px";
+  div.setAttribute("draggable", true);
+  div.dataset.id = task.id;
+
+  div.innerHTML = `
+    <input type="text" value="${task.title}" 
+      onchange="updateTask(${task.id}, 'title', this.value)">
+    <button class="toggleNotes">+</button><button onclick="deleteTask(${task.id})">&#x1F5D1;</button>
+    <textarea placeholder="Notes"
+      onchange="updateTask(${task.id}, 'notes', this.value)">${task.notes}</textarea>
+      
+  `;
+
+  // Toggle notes
+  const toggleBtn = div.querySelector(".toggleNotes");
+  const textarea = div.querySelector("textarea");
+  toggleBtn.onclick = (e) => {
+    if (textarea.style.display === "none") {
+      textarea.style.display = "block";
+      toggleBtn.textContent = "−";
+    } else {
+      textarea.style.display = "none";
+      toggleBtn.textContent = "+";
+    }
+    e.stopPropagation();
+  };
+
+  // Dragging logic
+  div.addEventListener("dragstart", e => {
+    e.dataTransfer.setData("text/plain", task.id);
+  });
+
+  // Click for connect/disconnect
+  div.addEventListener("click", e => {
+    handleTaskClick(task.id, div);
+    e.stopPropagation();
+  });
+
+  board.appendChild(div);
+}
+
+// Drag & drop on board
+document.getElementById("rightPanel").addEventListener("dragover", e => e.preventDefault());
+document.getElementById("rightPanel").addEventListener("drop", e => {
+  e.preventDefault();
+  const id = e.dataTransfer.getData("text/plain");
+  const task = tasks.find(t => t.id == id);
+  if (task) {
+    const rect = board.getBoundingClientRect();
+    task.x = (e.clientX - rect.left - 100) / zoom;
+    task.y = (e.clientY - rect.top - 20) / zoom;
+    const el = document.querySelector(`.task[data-id='${id}']`);
+    el.style.left = task.x + "px";
+    el.style.top = task.y + "px";
+    expandBoard(task.x, task.y);
+    renderConnections();
+    renderJSON();
+  }
+});
+
+// Update task fields
+function updateTask(id, field, value) {
+  const task = tasks.find(t => t.id === id);
+  if (task) {
+    task[field] = value;
+    renderJSON();
+  }
+}
+
+// Delete task
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  connections = connections.filter(c => c.from !== id && c.to !== id);
+  const el = document.querySelector(`.task[data-id='${id}']`);
+  if (el) el.remove();
+  renderConnections();
+  renderJSON();
+}
+
+// Connect / Disconnect modes
+document.getElementById("connectBtn").onclick = () => {
+  connectMode = !connectMode;
+  disconnectMode = false;
+  firstSelected = null;
+  updateModeButtons();
+};
+
+document.getElementById("disconnectBtn").onclick = () => {
+  disconnectMode = !disconnectMode;
+  connectMode = false;
+  firstSelected = null;
+  updateModeButtons();
+};
+
+function updateModeButtons() {
+  document.getElementById("connectBtn").style.background = connectMode ? "lightblue" : "";
+  document.getElementById("disconnectBtn").style.background = disconnectMode ? "lightcoral" : "";
+  document.querySelectorAll(".task").forEach(el => el.classList.remove("selected"));
+}
+
+// Handle task click
+function handleTaskClick(taskId, div) {
+  if (connectMode) handleConnectClick(taskId, div);
+  else if (disconnectMode) handleDisconnectClick(taskId, div);
+}
+
+// Connect two tasks
+function handleConnectClick(taskId, div) {
+  if (!firstSelected) {
+    firstSelected = taskId;
+    div.classList.add("selected");
+  } else {
+    if (firstSelected !== taskId) {
+      if (!connections.find(c => c.from === firstSelected && c.to === taskId)) {
+        connections.push({ from: firstSelected, to: taskId });
+      }
+      renderConnections();
+      renderJSON();
+    }
+    firstSelected = null;
+    document.querySelectorAll(".task").forEach(el => el.classList.remove("selected"));
+  }
+}
+
+// Disconnect two tasks
+function handleDisconnectClick(taskId, div) {
+  if (!firstSelected) {
+    firstSelected = taskId;
+    div.classList.add("selected");
+  } else {
+    if (firstSelected !== taskId) {
+      const index = connections.findIndex(c => 
+        (c.from === firstSelected && c.to === taskId) || 
+        (c.from === taskId && c.to === firstSelected)
+      );
+      if (index >= 0) {
+        connections.splice(index, 1);
+        renderConnections();
+        renderJSON();
+      } else {
+        alert("No connection exists between these tasks.");
+      }
+    }
+    firstSelected = null;
+    document.querySelectorAll(".task").forEach(el => el.classList.remove("selected"));
+  }
+}
+
+// Draw connections
+function renderConnections() {
+  svg.innerHTML = "";
+  connections.forEach(conn => {
+    const fromTask = tasks.find(t => t.id === conn.from);
+    const toTask = tasks.find(t => t.id === conn.to);
+    if (fromTask && toTask) {
+      const x1 = fromTask.x + 100, y1 = fromTask.y + 40;
+      const x2 = toTask.x + 100, y2 = toTask.y + 40;
+      
+      const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+      const dx = Math.abs(x2 - x1) / 2;
+      const dy = Math.abs(y2 - y1) / 2;
+      const controlX1 = x1 + dx; 
+      const controlY1 = y1;
+      const controlX2 = x2 - dx; 
+      const controlY2 = y2;
+      path.setAttribute("d", `M ${x1},${y1} C ${controlX1},${controlY1} ${controlX2},${controlY2} ${x2},${y2}`);
+      path.setAttribute("stroke", "black");
+      path.setAttribute("stroke-width", "2");
+      path.setAttribute("fill", "none");
+      svg.appendChild(path);
+
+      
+//      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+//      line.setAttribute("x1", x1);
+//      line.setAttribute("y1", y1);
+//      line.setAttribute("x2", x2);
+//      line.setAttribute("y2", y2);
+//      line.setAttribute("stroke", "black");
+//      line.setAttribute("stroke-width", "2");
+//      svg.appendChild(line);
+    }
+  });
+}
+
+// Download JSON
+document.getElementById("downloadBtn").onclick = () => {
+  const data = { tasks, connections };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "strategic_tasks.json";
+  a.click();
+};
+
+// Upload JSON
+document.getElementById("uploadJson").onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      tasks = data.tasks || [];
+      connections = data.connections || [];
+      counter = tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+
+      board.querySelectorAll(".task").forEach(el => el.remove());
+
+      tasks.forEach(createTaskElement);
+      ensureBoardFitsAllTasks();
+      renderConnections();
+      renderJSON();
+    } catch (err) {
+      alert("Invalid JSON file");
+    }
+  };
+  reader.readAsText(file);
+};
+
+// Download Board Image
+document.getElementById("downloadImageBtn").onclick = () => {
+  html2canvas(board, { backgroundColor: "#f9f9f9" }).then(canvas => {
+    canvas.toBlob(function(blob) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "task_board.png";
+      a.click();
+    });
+  });
+};
+
+// Zoom controls
+function setZoom(factor) {
+  zoom = Math.max(0.2, Math.min(zoom * factor, 3));
+  board.style.transform = `scale(${zoom})`;
+}
+function resetZoom() {
+  zoom = 1;
+  board.style.transform = "scale(1)";
+}
+
+const templates = {
+  basic: {
+    tasks: [
+      { id: 1, title: "Research", notes: "", x: 100, y: 100 },
+      { id: 2, title: "Brainstorm", notes: "", x: 400, y: 150 },
+      { id: 3, title: "Plan", notes: "", x: 250, y: 300 }
+    ],
+    connections: [
+      { from: 1, to: 2 },
+      { from: 2, to: 3 }
+    ]
+  },
+  kanban: {
+    tasks: [
+      { id: 1, title: "Backlog", notes: "", x: 100, y: 100 },
+      { id: 2, title: "In Progress", notes: "", x: 400, y: 100 },
+      { id: 3, title: "Done", notes: "", x: 700, y: 100 }
+    ],
+    connections: [
+      { from: 1, to: 2 },
+      { from: 2, to: 3 }
+    ]
+  },
+  biblestudy: {
+    tasks: [
+      { id: 1, title: "Theme: ", notes: "Central idea for the study/sermon", x: 300, y: 100 },
+      { id: 2, title: "Main Question", notes: "", x: 100, y: 300 },
+      { id: 3, title: "Scripture 1:", notes: "", x: 500, y: 300 },
+      { id: 4, title: "Scripture 2:", notes: "", x: 700, y: 450 },
+      { id: 5, title: "Scripture 3:", notes: "", x: 300, y: 450 },
+      { id: 6, title: "Commentary Notes", notes: "", x: 100, y: 600 },
+      { id: 7, title: "Application", notes: "Practical takeaways", x: 500, y: 600 }
+    ],
+    connections: [
+      { from: 1, to: 2 },
+      { from: 1, to: 3 },
+      { from: 1, to: 4 },
+      { from: 1, to: 5 },
+      { from: 3, to: 6 },
+      { from: 2, to: 7 },
+      { from: 5, to: 7 }
+    ]
+  }
+};
+
+renderJSON();
+
+document.getElementById("templateSelector").onchange = e => {
+  const value = e.target.value;
+  if (!value) return;
+
+  if (tasks.length > 0 && !confirm("Loading a template will overwrite the current board. Continue?")) {
+    e.target.value = "";
+    return;
+  }
+
+  loadTemplate(templates[value]);
+};
+
+function loadTemplate(data) {
+  tasks = data.tasks || [];
+  connections = data.connections || [];
+  counter = tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+
+  // Clear board
+  board.querySelectorAll(".task").forEach(el => el.remove());
+
+  // Render tasks and connections
+  tasks.forEach(createTaskElement);
+  ensureBoardFitsAllTasks();
+  renderConnections();
+  renderJSON();
+}
+
+</script>
+
+</body>
+</html>
