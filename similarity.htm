@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pro Diff Tool</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --border: #ced4da;
+      --added-bg: #d1e7dd;
+      --added-text: #0f5132;
+      --removed-bg: #f8d7da;
+      --removed-text: #842029;
+      --primary: #0d6efd;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: var(--bg);
+      color: #333;
+    }
+
+    .wrapper {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    textarea {
+      height: 250px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      resize: vertical;
+      font-family: 'Fira Code', monospace;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    }
+
+    .stats {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #similarity-badge {
+      background: var(--primary);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+
+    #diff {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      white-space: pre-wrap;
+      line-height: 1.8;
+      min-height: 100px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .added {
+      background-color: var(--added-bg);
+      color: var(--added-text);
+      padding: 2px 4px;
+      border-radius: 3px;
+      text-decoration: none;
+    }
+
+    .removed {
+      background-color: var(--removed-bg);
+      color: var(--removed-text);
+      padding: 2px 4px;
+      border-radius: 3px;
+      text-decoration: line-through;
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrapper">
+  <div class="header">
+    <h2>Text Similarity & Diff</h2>
+    <p>Compare two versions of text in real-time.</p>
+  </div>
+
+  <div class="container">
+    <div class="input-group">
+      <label>ORIGINAL TEXT</label>
+      <textarea id="leftText" placeholder="Paste original text here..."></textarea>
+    </div>
+    <div class="input-group">
+      <label>MODIFIED TEXT</label>
+      <textarea id="rightText" placeholder="Paste modified text here..."></textarea>
+    </div>
+  </div>
+
+  <div class="stats">
+    <span>Results</span>
+    <span id="similarity-badge">Similarity: 0%</span>
+  </div>
+
+  <div id="diff">Differences will appear here...</div>
+</div>
+
+<script>
+  const leftInput = document.getElementById("leftText");
+  const rightInput = document.getElementById("rightText");
+  const diffDisplay = document.getElementById("diff");
+  const simBadge = document.getElementById("similarity-badge");
+
+  // Listen for changes for real-time updates
+  [leftInput, rightInput].forEach(el => {
+    el.addEventListener('input', compareTexts);
+  });
+
+  function compareTexts() {
+    const left = leftInput.value.trim();
+    const right = rightInput.value.trim();
+
+    if (!left && !right) {
+      diffDisplay.innerHTML = "Enter text to see differences.";
+      simBadge.innerText = "Similarity: 0%";
+      return;
+    }
+
+    // Use a more robust split that filters out empty strings from extra spaces
+    const leftWords = left ? left.split(/\s+/) : [];
+    const rightWords = right ? right.split(/\s+/) : [];
+
+    const matrix = buildLCSMatrix(leftWords, rightWords);
+    const diffResult = buildDiff(leftWords, rightWords, matrix);
+
+    const lcsLength = matrix[leftWords.length][rightWords.length];
+    const totalLength = leftWords.length + rightWords.length;
+    const similarity = totalLength === 0 ? 100 : Math.round((2 * lcsLength / totalLength) * 100);
+
+    simBadge.innerText = `Similarity: ${similarity}%`;
+    diffDisplay.innerHTML = diffResult.join(" ");
+  }
+
+  function buildLCSMatrix(a, b) {
+    const n = a.length, m = b.length;
+    const matrix = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+
+    for (let i = 1; i <= n; i++) {
+      for (let j = 1; j <= m; j++) {
+        if (a[i - 1] === b[j - 1]) {
+          matrix[i][j] = matrix[i - 1][j - 1] + 1;
+        } else {
+          matrix[i][j] = Math.max(matrix[i - 1][j], matrix[i][j - 1]);
+        }
+      }
+    }
+    return matrix;
+  }
+
+  function buildDiff(a, b, matrix) {
+    let i = a.length, j = b.length;
+    const result = [];
+
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+        result.unshift(escapeHtml(a[i - 1]));
+        i--; j--;
+      } else if (j > 0 && (i === 0 || matrix[i][j - 1] >= matrix[i - 1][j])) {
+        result.unshift(`<span class="added">${escapeHtml(b[j - 1])}</span>`);
+        j--;
+      } else if (i > 0 && (j === 0 || matrix[i][j - 1] < matrix[i - 1][j])) {
+        result.unshift(`<span class="removed">${escapeHtml(a[i - 1])}</span>`);
+        i--;
+      }
+    }
+    return result;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
