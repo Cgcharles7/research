@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pure JavaScript Document Editor (Text Input Modal Added)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .container { margin: 0 auto; display: flex; gap: 20px; }
+        .editor-section, .preview-section { flex: 1; padding: 20px; border: 1px solid #ccc; background: white; border-radius: 8px; }
+        .document-block { border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; background: #f9f9f9; border-radius: 4px; }
+        .controls-block { display: flex; justify-content: space-between; margin-bottom: 10px; gap: 5px; }
+        .controls-block button { padding: 5px 10px; cursor: pointer; border: 1px solid #007bff; background-color: #007bff; color: white; border-radius: 3px; font-size: 0.85em; transition: background-color 0.2s; }
+        .controls-block button:hover:not(:disabled) { background-color: #0056b3; }
+        .controls-block button:disabled { background-color: #a9a9a9; cursor: not-allowed; border-color: #a9a9a9; }
+        .controls-top { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .controls-top button, .file-upload-label { padding: 8px 15px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; }
+        
+        /* Button colors */
+        .controls-top button:not(.merge-btn):not(.text-load-toggle):not(.copy-btn), .file-upload-label.json-load { background-color: #6c757d; color: white; }
+        .controls-top button:not(.merge-btn):not(.text-load-toggle):not(.copy-btn):hover, .file-upload-label.json-load:hover { background-color: #5a6268; }
+        .text-load-toggle, .parse-text-btn { background-color: #ffc107; color: black !important; }
+        .text-load-toggle:hover, .parse-text-btn:hover { background-color: #e0a800; }
+        .copy-btn { background-color: #17a2b8; color: white; }
+        .copy-btn:hover { background-color: #138496; }
+        .merge-btn { background-color: #28a745; color: white; }
+        .merge-btn:hover { background-color: #1e7e34; }
+        .delete-btn { background-color: #dc3545 !important; border-color: #dc3545 !important; }
+        .delete-btn:hover { background-color: #c82333 !important; }
+        .cell-debug {font-size: 0.6em;color: #999;margin-right: 0.4em;user-select: none;}
+        .table-error {color: #b00020;font-size: 0.85em;background: #fff0f0;}
+        .debug-tables .cell-debug {display: inline;}
+        .cell-debug {display: none;}
+  .binom {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  align-items: center;
+  padding: 0 0.2em;
+  position: relative;
+  line-height: 1.1;
+  font-size: 0.9em;
+}
+
+/* Creating the large parentheses */
+.binom::before { content: "("; }
+.binom::after { content: ")"; }
+
+.binom::before, .binom::after {
+  font-size: 1.6em;
+  font-weight: 100;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-55%) scaleY(1.2);
+}
+
+.binom::before { left: -0.1em; }
+.binom::after { right: -0.1em; }
+
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  align-items: center;
+  font-size: 0.9em;
+  padding: 0 0.1em;
+}
+
+.document-block.is-speaking {
+    border-left: 4px solid #3498db;
+    background-color: #f0f8ff;
+    transition: all 0.3s ease;
+}
+
+/* The container for your table */
+.latex-table {
+    border-collapse: collapse;
+    margin: 15px 0;
+    width: auto; /* Keeps it tight to the content */
+    font-family: serif;
+}
+
+/* This simulates the \hline between every row */
+.latex-table td {
+    border-bottom: 1px solid #333; 
+    padding: 8px 12px;
+}
+
+/* Optional: Add a top border to the first row to simulate a top \hline */
+.latex-table tr:first-child td {
+    border-top: 2px solid #000;
+}
+
+/* Remove the bottom border from the very last row for a cleaner look 
+   (unless you specifically want a bottom line there) */
+.latex-table tr:last-child td {
+    border-bottom: 2px solid #000;
+}
+
+.num {
+  padding: 0 0.2em;
+}
+
+.den {
+  border-top: 1px solid black;
+  padding: 0 0.2em;
+}
+
+        
+        /* Text Input Area Style */
+        #text-input-section { 
+            margin-top: 15px; 
+            padding: 15px; 
+            border: 1px solid #ffc107; 
+            background-color: #fffbe6; 
+            border-radius: 4px; 
+            display: none; /* Initially hidden */
+        }
+        #text-input-area { 
+            width: 100%; 
+            height: 200px; 
+            margin-bottom: 10px; 
+            box-sizing: border-box; 
+            padding: 10px;
+        }
+        
+        
+        /* Text Input Area Style */
+        #json-input-section { 
+            margin-top: 15px; 
+            padding: 15px; 
+            border: 1px solid #ffc107; 
+            background-color: #fffbe6; 
+            border-radius: 4px; 
+            display: none; /* Initially hidden */
+        }
+        #json-input-area { 
+            width: 100%; 
+            height: 200px; 
+            margin-bottom: 10px; 
+            box-sizing: border-box; 
+            padding: 10px;
+        }
+        
+        .block-header-input { width: 100%; padding: 5px; margin-bottom: 5px; border: 1px solid #ccc; box-sizing: border-box; font-size: 1.1em; font-weight: bold; }
+        textarea { width: 100%; height: 100px; padding: 5px; border: 1px solid #ccc; box-sizing: border-box; resize: vertical; }
+        
+        .file-upload-input { display: none; }
+        .file-upload-label { display: inline-block; padding: 8px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; text-align: center; }
+        .file-upload-label.json-load { background-color: #6c757d; color: white; }
+
+        .preview-content { border-top: 2px solid #333; margin-top: 15px; padding-top: 10px; }
+        .preview-block h3 { margin-top: 15px; margin-bottom: 5px; color: #0056b3; }
+        .preview-block p { white-space: pre-wrap; margin-top: 0; }
+        /* Enable scrolling for the editor block list */
+        .editor-content {
+            max-height: 80vh; /* Adjust as needed */
+            overflow-y: auto;
+            padding-right: 10px; /* Space for the scrollbar */
+        }
+        
+        /* Enable scrolling for the live preview */
+        .preview-wrapper {
+            max-height: 80vh; /* Adjust as needed */
+            overflow-y: auto;
+        }
+        
+        /* Remove padding from the sections, as the new inner divs will handle it */
+        .editor-section, .preview-section {
+            padding: 20px 10px 20px 20px; /* Reduced right padding for editor scrollbar */
+        }
+.grammar-error {
+    text-decoration: underline;
+    text-decoration-color: #2ecc71; /* Professional Green */
+    text-decoration-style: wavy;
+    text-decoration-thickness: 2px;
+    cursor: help;
+}
+
+/* Optional: Show the fix on hover */
+.grammar-error:hover::after {
+    content: attr(data-reason);
+    position: absolute;
+    background: #333;
+    color: #fff;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 10;
+}
+
+.audit-tray {
+    margin-top: 8px;
+    padding: 8px;
+    background: #fdfdfd;
+    border-top: 1px solid #eee;
+    font-size: 0.85rem;
+}
+
+.audit-error {
+    color: #d93025;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.audit-warning {
+    color: #e67e22;
+    margin-bottom: 4px;
+}
+
+.audit-warning small {
+    color: #7f8c8d;
+    font-style: italic;
+}
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="editor-section">
+            <h2>Document Editor</h2>
+            <div id="text-input-section">
+                <p>Paste text below. Sections separated by a double newline (empty line) will be treated as separate blocks. The first line of each section will be the block header.</p>
+                <textarea id="text-input-area" placeholder="Paste your text here..."></textarea>
+                <button id="parse-text-btn" class="parse-text-btn">Parse & Load Text</button>
+            </div>
+<div class="editor-section">
+    <div class="editor-content">            
+            <div id="workspace-root">
+                </div>
+</div>
+</div>
+        </div>
+        <div class="preview-section">
+            <h2>Live Preview</h2>
+<div class="preview-section">
+    <div class="preview-wrapper">
+            <div id="preview-root">
+                </div>
+            </div>
+</div>
+        </div>
+    </div>
+
+    <script>
+
+    
+    
+        // --- 1. STATE MANAGEMENT ---
+        const initialBlocks = [
+            { id: generateUniqueId(), header: "Introduction", content: "Welcome to the editor. Use $\\alpha + \\beta$ for math.", type: 'text' },
+        ];
+
+        let state = {
+            blocks: initialBlocks,
+        };
+
+        function setState(newStatePart) {
+            state = { ...state, ...newStatePart };
+            renderApp();
+        }
+        function generateUniqueId() {
+            return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        }
+        
+        function handleFieldChange(id, fieldName, newValue) {
+            // 1. Update the state
+            const newBlocks = state.blocks.map(block =>
+                block.id.toString() === id.toString() ? { ...block, [fieldName]: newValue } : block
+            );
+            state = { ...state, blocks: newBlocks };
+        
+            // 2. Update the Live Preview
+            renderPreview();
+        
+            // 3. Update the Audit Tray for THIS block specifically 
+            // (This avoids a full re-render of the workspace so focus isn't lost)
+            const block = state.blocks.find(b => b.id.toString() === id.toString());
+            const blockElement = document.querySelector(`.document-block[data-id="${id}"]`);
+            
+            if (blockElement && fieldName === 'content') {
+                const report = auditDocument(block.content);
+                updateAuditTrayUI(blockElement, report);
+            }
+        }
+        
+        function updateAuditTrayUI(container, report) {
+            let tray = container.querySelector('.audit-tray');
+            if (!tray) {
+                tray = document.createElement('div');
+                tray.className = 'audit-tray';
+                container.appendChild(tray);
+            }
+        
+            const errorHtml = report.errors.map(err => `<div class="audit-error">❌ ${err.msg}</div>`).join('');
+            const warningHtml = report.warnings.map(warn => `<div class="audit-warning">⚠️ ${warn.msg}</div>`).join('');
+            
+            tray.innerHTML = errorHtml + warningHtml;
+            // Hide tray if empty
+            tray.style.display = (errorHtml || warningHtml) ? 'block' : 'none';
+        }
+
+        // --- 2. HANDLER FUNCTIONS (State Mutators - kept brief) ---
+
+        function renderPreview() {
+            const previewRoot = document.getElementById('preview-root');
+            previewRoot.innerHTML = '';
+            previewRoot.appendChild(createPreviewContent());
+        }
+        
+        function getBasicErrors(text) {
+            const rules = [
+                // 1. A vs An (Simple check: 'a' followed by a vowel)
+                { regex: /\b(a)\s([aeiouAEIOU][a-z]+)/g, msg: "Use 'an' before a vowel." },
+                // 2. An vs A (An followed by a consonant)
+                { regex: /\b(an)\s([^aeiouAEIOU\W][a-z]+)/g, msg: "Use 'a' before a consonant." },
+                // 3. Its vs It's (Followed by an adjective/article usually means 'It is')
+                { regex: /\bits\b\s(?=a|an|the|very|really|important)/gi, msg: "Likely 'it's' (it is)." },
+                // 4. Double Spaces
+                { regex: /[a-z0-9][ ]{2,}[a-z0-9]/gi, msg: "Double spaces detected." },
+                // 5. Punctuation spacing (Space before period/comma)
+                { regex: /\s+([.,!?;:])/g, msg: "Remove space before punctuation." },
+                // 6. Repetead words 
+                { regex: /\b(\w+)\s+\1\b/gi, msg: "Repeated word detected." },
+                // 7. Common typos (to vs too)
+                { regex: /\btoo\b\s(?=many|much|far)/gi, msg: "Correct usage, but check 'to' vs 'too'." }
+            ];
+        
+            let results = [];
+            rules.forEach(rule => {
+                let match;
+                while ((match = rule.regex.exec(text)) !== null) {
+                    results.push({
+                        index: match.index,
+                        length: match[0].length,
+                        reason: rule.msg
+                    });
+                }
+            });
+            return results;
+        }
+        
+        function checkSentenceStarters(text) {
+            // Split into sentences and get the first word of each
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            const starters = sentences.map(s => s.trim().split(/\s+/)[0].toLowerCase());
+            
+            const starterFlags = [];
+            for (let i = 0; i < starters.length - 1; i++) {
+                if (starters[i] === starters[i+1]) {
+                    starterFlags.push({
+                        word: starters[i],
+                        reason: `Repetitive sentence starter: "${starters[i]}" used back-to-back.`
+                    });
+                }
+            }
+            return starterFlags;
+        }
+        
+        const transitionProposals = {
+            "so": ["Consequently,", "Hence,", "It follows that,", "Thus,", "Accordingly,", "Therefore,", "Thus,", "Consequently,", "Hence,","Accordingly,", "As a result,"],
+            "this": ["This constraint", "This boundary", "This neighborhood", "This mapping", "It", "The aforementioned", "The one in question", "Here", "Consequently", "Therefore", "Thus", "Hence", "As a result", "Accordingly", "In this regard", "In relation to", "This highlights","This shows", "It is evident"],
+            "then": ["It remains to show", "Subsequently,", "Following this,", "After That", "In Addition", "At That Time", ],
+            "but": ["Conversely,", "In contrast,", "However,", "Despite this constraint,"]
+        };
+        
+        
+        // Rule: Flag 'This' + Verb
+//{ 
+//    regex: /\b(This|this)\s+(is|implies|shows|proves|means|leads)\b/g, 
+//    msg: "Vague 'This'. Try adding a noun (e.g., 'This result', 'This mapping')." 
+//}
+
+
+        function highlightWithSuggestions(blockId) {
+            const editor = document.getElementById(blockId);
+            let content = editor.innerText;
+            
+            // Find repetitive 'So'
+            const sentences = content.split(/(?<=[.!?])\s+/);
+            let lastStarter = "";
+            
+            const processedSentences = sentences.map(s => {
+                const words = s.trim().split(/\s+/);
+                const currentStarter = words[0].toLowerCase();
+                
+                if (currentStarter === lastStarter && transitionProposals[currentStarter]) {
+                    const suggest = getRecommendation(currentStarter);
+                    return `<span class="grammar-warning" title="Try: ${suggest}">${s}</span>`;
+                }
+                
+                lastStarter = currentStarter;
+                return s;
+            });
+        
+            editor.innerHTML = processedSentences.join(' ');
+        }
+
+
+        function getRecommendation(word) {
+            const lowWord = word.toLowerCase().replace(/[^a-z]/g, '');
+            const options = transitionProposals[lowWord];
+            return options ? options[Math.floor(Math.random() * options.length)] : null;
+        }
+        
+        function checkWordFrequency(text) {
+            const commonWords = ['the', 'and', 'that', 'with', 'from', 'this', 'for'];
+            const words = text.toLowerCase().match(/\b(\w+)\b/g);
+            const freq = {};
+            
+            words.forEach(w => {
+                if (!commonWords.includes(w) && w.length > 2) {
+                    freq[w] = (freq[w] || 0) + 1;
+                }
+            });
+        
+            // Flag any word used more than, say, 5 times in a small block
+            return Object.keys(freq).filter(w => freq[w] > 5).map(w => ({
+                word: w,
+                count: freq[w],
+                reason: `Word "${w}" is overused (${freq[w]} times).`
+            }));
+        }
+        
+        function highlightGrammar(editorId) {
+            const editor = document.getElementById(editorId);
+            let text = editor.innerText;
+            const errors = getBasicErrors(text);
+        
+            // Sort errors backwards so replacing doesn't mess up indices
+            errors.sort((a, b) => b.index - a.index);
+        
+            errors.forEach(err => {
+                const before = text.substring(0, err.index);
+                const word = text.substring(err.index, err.index + err.length);
+                const after = text.substring(err.index + err.length);
+                
+                text = `${before}<span class="grammar-error" data-reason="${err.reason}">${word}</span>${after}`;
+            });
+        
+            editor.innerHTML = text;
+        }
+        
+        function checkBrackets(text) {
+            const stack = [];
+            const pairs = { '(': ')', '[': ']', '{': '}', '<': '>' };
+            const errors = [];
+        
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (pairs[char]) {
+                    stack.push({ char, index: i });
+                } else if (Object.values(pairs).includes(char)) {
+                    const last = stack.pop();
+                    if (!last || pairs[last.char] !== char) {
+                        errors.push({ index: i, reason: `Unmatched closing ${char}` });
+                    }
+                }
+            }
+            
+            // Anything left in stack is an unclosed opener
+            stack.forEach(item => {
+                errors.push({ index: item.index, reason: `Unclosed ${item.char}` });
+            });
+            
+            return errors;
+        }
+        
+        function analyzeFluency(text) {
+            // Split into sentences using common terminal punctuation
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            const flags = [];
+        
+            sentences.forEach(sentence => {
+                const words = sentence.trim().split(/\s+/);
+                const wordCount = words.length;
+                
+                // Rule: Sentence Length > 25
+                if (wordCount > 25) {
+                    flags.push({ 
+                        text: sentence.substring(0, 20) + "...", 
+                        reason: "Sentence too long (>25 words). Break it up!" 
+                    });
+                }
+        
+                // Rule: Average Word Length > 6
+                const totalChars = words.reduce((acc, word) => acc + word.length, 0);
+                const avgLength = totalChars / wordCount;
+                
+                if (avgLength > 6.5) {
+                    flags.push({ 
+                        text: sentence.substring(0, 20) + "...", 
+                        reason: `Average word length (${avgLength.toFixed(1)}) is high. Potential mumbo-jumbo detected.` 
+                    });
+                }
+            });
+            
+            return flags;
+        }
+        
+        function auditDocument(text) {
+            const report = {
+                errors: [],    // Brackets, a/an, its/it's
+                warnings: []   // Sentence length, Avg word length
+            };
+        
+            // 1. Structural Check (Brackets)
+            const stack = [];
+            const openers = { '(': ')', '[': ']', '{': '}' };
+            const closers = { ')': '(', ']': '[', '}': '{' };
+        
+            for (let i = 0; i < text.length; i++) {
+                if (openers[text[i]]) stack.push({ char: text[i], pos: i });
+                else if (closers[text[i]]) {
+                    if (stack.length === 0 || stack.pop().char !== closers[text[i]]) {
+                        report.errors.push({ pos: i, msg: `Mismatched ${text[i]}` });
+                    }
+                }
+            }
+            stack.forEach(unclosed => report.errors.push({ pos: unclosed.pos, msg: `Unclosed ${unclosed.char}` }));
+        
+            // 2. Fluency Check (The "Mumbo-Jumbo" Theory)
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 5);
+            
+            sentences.forEach(s => {
+                const words = s.trim().split(/\s+/);
+                const avg = words.reduce((a, b) => a + b.length, 0) / words.length;
+        
+                if (words.length > 25) {
+                    report.warnings.push({ msg: "Long sentence (>25 words).", sample: s.substring(0, 15) });
+                }
+                if (avg > 6.0) {
+                    report.warnings.push({ msg: `High Mumbo-Jumbo score: ${avg.toFixed(1)}`, sample: s.substring(0, 15) });
+                }
+            });
+        
+            return report;
+        }
+
+        function handleMoveBlock(currentIndex, direction) {
+            const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+            if (newIndex < 0 || newIndex >= state.blocks.length) return;
+            const newBlocks = [...state.blocks];
+            [newBlocks[currentIndex], newBlocks[newIndex]] = [newBlocks[newIndex], newBlocks[currentIndex]];
+            setState({ blocks: newBlocks });
+        }
+        
+        function handleInsertBlock(index, position) {
+            const newBlock = { id: generateUniqueId(), header: " ", content: "", type: 'text' };
+            const insertIndex = position === 'before' ? index : index + 1;
+            const newBlocks = [...state.blocks];
+            newBlocks.splice(insertIndex, 0, newBlock);
+            setState({ blocks: newBlocks });
+        }
+        
+
+
+        function handleMergeBlock(index, position) {
+            const currentBlocks = state.blocks;
+            let indexB1, indexB2;
+            if (position === 'before') { indexB1 = index - 1; indexB2 = index; } 
+            else if (position === 'after') { indexB1 = index; indexB2 = index + 1; } 
+            else { return; }
+
+            if (indexB1 < 0 || indexB2 >= currentBlocks.length || indexB1 >= currentBlocks.length || indexB2 < 0) {
+                console.error("Merge indices are out of bounds.");
+                return;
+            }
+
+            const block1 = currentBlocks[indexB1];
+            const block2 = currentBlocks[indexB2];
+
+            const newBlock = {
+                id: generateUniqueId(),
+                header: block1.header,
+                content: block1.content + "\n\n" + block2.content,
+                type: 'text'
+            };
+
+            const blocksToKeep = currentBlocks.filter(
+                (b, i) => i !== indexB1 && i !== indexB2
+            );
+
+            blocksToKeep.splice(Math.min(indexB1, indexB2), 0, newBlock);
+            setState({ blocks: blocksToKeep });
+        }
+
+        function handleAddBlockEnd() {
+            const newBlock = { id: generateUniqueId(), header: "New Section", content: "New paragraph block added to the end.", type: 'text' };
+            setState({ blocks: [...state.blocks, newBlock] });
+        }
+
+        function handleDeleteBlock(idToDelete) {
+            setState({ blocks: state.blocks.filter(b => b.id.toString() !== idToDelete.toString()) });
+        }
+        
+        function handleParseTextInput() {
+            const textArea = document.getElementById('text-input-area');
+            const sections = textArea.value.split(/\n\s*\n/).filter(s => s.trim() !== '');
+            if (sections.length === 0) return alert("No text found.");
+        
+            const newBlocks = sections.map(section => {
+                const lines = section.trim().split('\n');
+                return {
+                    id: generateUniqueId(),
+                    header: lines.length > 1 ? "" : "",
+                    content: lines.length > 1 ? lines.slice(0).join('\n').trim() : lines[0].trim(),
+                    type: 'text'
+                };
+            });
+        
+            setState({ blocks: [...state.blocks, ...newBlocks] });
+            document.getElementById('text-input-section').style.display = 'none';
+            textArea.value = "";
+        }
+        
+        function createTableEditor(block) {
+          const table = document.createElement('table');
+          table.className = 'table-editor';
+        
+          block.rows.forEach((row, r) => {
+            const tr = document.createElement('tr');
+        
+            row.forEach((cell, c) => {
+              const td = document.createElement('td');
+              td.contentEditable = true;
+              td.textContent = cell;
+        
+              td.oninput = e => {
+                block.rows[r][c] = e.target.textContent;
+                renderPreview(); // live preview
+              };
+        
+              tr.appendChild(td);
+            });
+        
+            table.appendChild(tr);
+          });
+        
+          return table;
+        }
+        
+        function renderPreview() {
+            const root = document.getElementById('preview-root');
+            root.innerHTML = state.blocks.map(b => `
+                <div class="preview-block">
+                    <h3>${b.header}</h3>
+                    <div>${renderLatexLiteDocument(b.content)}</div>
+                </div>
+            `).join('');
+        }
+
+        function toggleTextInput() {
+            const section = document.getElementById('text-input-section');
+            const isHidden = section.style.display === 'none' || section.style.display === '';
+            section.style.display = isHidden ? 'block' : 'none';
+        }
+        
+        function importFromJSON(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload= (e) => {
+                    try {
+                        const importedBlocks = JSON.parse(e.target.result);
+                        if (Array.isArray(importedBlocks)) {
+                            blocks = importedBlocks;
+                            nextId = blocks.reduce((maxId, block) => Math.max(maxId, blockId), 0) + 1;
+                            renderBlocks();
+                            updateBlocks();
+                            updatePreview();
+                        } else {
+                            alert ('Invalid JSON format');
+                        }
+                    } catch (error) {
+                        alert('Error parsing JSON');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function createTopControls() {
+            const controlsDiv = document.createElement('div');
+            controlsDiv.className = 'controls-top';
+
+            controlsDiv.innerHTML = `
+                <button onclick="toggleTextInput()">Load Text (Input)</button>
+				<button onclick="importFromJSON('text')">Load JSON</button>
+                <button onclick=" handleMergeAndOutput()">Merge to LaTeX</button>
+                <button onclick="handleDownloadJSON()">Save JSON</button>
+                <button onclick="handleMergeAndOutput('text')">Merge to Text</button>
+				<button onclick="handleCopyPreview()">Copy HTML Preview</button>
+                
+            `;
+
+            return controlsDiv;
+        }
+
+        // --- 6. INITIALIZATION ---
+
+        function renderApp() {
+            const workspace = document.getElementById('workspace-root');
+            workspace.innerHTML = '';
+            workspace.appendChild(createTopControls());
+            state.blocks.forEach((b, i) => workspace.appendChild(createBlockElement(b, i)));
+            renderPreview();
+            
+            // Re-bind parse button
+            const btn = document.getElementById('parse-text-btn');
+            if (btn) btn.onclick = handleParseTextInput;
+        }
+        
+        // --- Full implementation of omitted functions for completeness ---
+
+        function handleDownloadJSON() {
+            const jsonString = JSON.stringify(state.blocks, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document_workspace.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function handleLoadJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsedBlocks = JSON.parse(e.target.result);
+                    if (!Array.isArray(parsedBlocks) || !parsedBlocks.every(b => b.id)) {
+                        alert("Invalid JSON file format.");
+                        return;
+                    }
+                    const validatedBlocks = parsedBlocks.map(block => ({
+                        id: block.id.toString(),
+                        header: block.header || "",
+                        content: block.content || "",
+                        type: block.type || 'text',
+                    }));
+                    setState({ blocks: validatedBlocks });
+                    alert(`Successfully loaded ${validatedBlocks.length} blocks from JSON.`);
+                } catch (error) {
+                    alert("Error parsing JSON file: " + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function handleMergeAndOutput(format) {
+            const allFormattedContent = state.blocks.map(block => {
+                const header = block.header.trim();
+                const content = block.content.trim();
+                if (format === 'latex') {
+                    return `\\subsection*{${header}}\n\n${content}`;
+                }
+                return `${header}\n${'='.repeat(header.length)}\n${content}`;
+            });
+            const mergedText = allFormattedContent.join('\n\n');
+            let outputContent;
+            if (format === 'text') {
+                outputContent = '--- Merged Plain Text Output ---\n\n' + mergedText;
+            } else if (format === 'latex') {
+                const latexWrapper = 
+                    `\\documentclass{article}\n` +
+                    `\\usepackage{amsmath}\n` + 
+                    `\\begin{document}\n\n` +
+                    `\\section*{Document Output}\n\n` +
+                    `${mergedText}\n\n` +
+                    `\\end{document}`;
+                outputContent = '--- Merged LaTeX Output ---\n\n' + latexWrapper;
+                
+                if (block.type === 'table') {
+                      return tableBlockToLatex(block);
+                }
+
+            }
+            console.log(outputContent);
+            alert(outputContent);
+        }
+        
+        function handleCopyPreview() {
+            const previewRoot = document.getElementById("preview-root");
+            if (!previewRoot) {
+                alert("Preview panel not found.");
+                return;
+            }
+            const text = previewRoot.textContent.trim();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Preview panel HTML copied to clipboard (using Clipboard API).");
+                }).catch(err => {
+                    fallbackCopyHtml(text);
+                });
+            } else {
+                fallbackCopyHtml(text);
+            }
+        }
+        
+        function fallbackCopyHtml(htmlContent) {
+            const temp = document.createElement("textarea");
+            temp.value = htmlContent;
+            temp.style.position = 'fixed'; temp.style.top = '0'; temp.style.left = '0'; temp.style.opacity = '0';
+            document.body.appendChild(temp);
+            temp.select();
+            try {
+                const successful = document.execCommand("copy");
+                const msg = successful ? "Preview panel HTML copied to clipboard (using execCommand)." : "Failed to copy HTML to clipboard.";
+                alert(msg);
+            } catch (err) {
+                console.error("Fallback copy failed: ", err);
+                alert("Failed to copy HTML to clipboard. Please check console for details.");
+            } finally {
+                document.body.removeChild(temp);
+            }
+        }
+
+        function createBlockElement(block, index) {
+            const blockDiv = document.createElement('div');
+            blockDiv.className = 'document-block';
+            blockDiv.setAttribute('data-id', block.id);
+            
+            const report = auditDocument(block.content);
+            const hasIssues = report.errors.length > 0 || report.warnings.length > 0;
+            
+            let auditHtml = '';
+            if (hasIssues) {
+                auditHtml = `<div class="audit-tray">`;
+                report.errors.forEach(err => {
+                    auditHtml += `<div class="audit-error">❌ ${err.msg} (Pos: ${err.pos})</div>`;
+                });
+                report.warnings.forEach(warn => {
+                    auditHtml += `<div class="audit-warning">⚠️ ${warn.msg} <small>"${warn.sample}"</small></div>`;
+                });
+                auditHtml += `</div>`;
+            }
+            
+            blockDiv.innerHTML = `
+            <div class="controls-block">
+            <button onclick="handleMoveBlock(${index}, 'up')">⬆️</button>
+            <button onclick="handleMoveBlock(${index}, 'down')">⬇️</button>
+            <button onclick="handleInsertBlock(${index}, 'before')">+ Above</button>
+            <button onclick="handleInsertBlock(${index}, 'after')">- After</button>
+            <button onclick="handleMergeBlock(${index}, 'before')">Merge Above</button>
+            <button onclick="handleMergeBlock(${index}, 'after')">Merge Below</button>
+            <button class="delete-btn" onclick="handleDeleteBlock('${block.id}')">🗑️</button>
+            <button onclick="speakBlock('${block.id}')">🔊 Speak</button>
+        </div>
+        
+            <input class="block-header-input" value="${block.header}" 
+                   oninput="handleFieldChange('${block.id}', 'header', this.value)">
+            <textarea id=textarea-${block.id} oninput="handleFieldChange('${block.id}', 'content', this.value)">${block.content}</textarea>
+            
+            ${auditHtml}
+            `;
+            
+//            const btnSpeak = document.createElement('button');
+//            btnSpeak.innerHTML = '';
+ //           btnSpeak.onclick = () => ; 
+            
+//            const contentTextarea = document.createElement('textarea');
+//            contentTextarea.id = `textarea-${block.id}`;
+//            contentTextarea.value = block.content;
+            
+//            blockDiv.append(btnSpeak); // Append the new speak button
+//            blockDiv.appendChild(controlsDiv);
+            return blockDiv;
+        }
+        
+        function tableBlockToLatex(block) {
+          const align = block.align.join('');
+          const rows = block.rows
+            .map(row => row.join(' & ') + ' \\\\')
+            .join('\n');
+        
+          return `
+        \\begin{tabular}{${align}}
+        ${rows}
+        \\end{tabular}
+        `.trim();
+        }
+
+        function speakBlock(blockId) {
+            // 1. Cancel any current speech
+            window.speechSynthesis.cancel();
+        
+            // 2. Get the LIVE text from the textarea, not just the state
+            const textArea = document.getElementById(`textarea-${blockId}`);
+            const textToSpeak = textArea ? textArea.value : "";
+
+            if (!textToSpeak.trim()) {
+                console.warn("Nothing to speak for block:", blockId);
+                return;
+            }
+        
+            // 3. Clean LaTeX for better speech (optional but helpful)
+            // Converts "\alpha + \beta" to "alpha + beta" for the screen reader
+            const cleanText = textToSpeak.replace(/\\/g, ' ').replace(/[{}]/g, ' ');
+        
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            // 4. Visual Feedback
+            const blockElement = document.querySelector(`.document-block[data-id="${blockId}"]`);
+            utterance.onstart = () => blockElement?.classList.add('is-speaking');
+            utterance.onend = () => blockElement?.classList.remove('is-speaking');
+            utterance.onerror = () => blockElement?.classList.remove('is-speaking');
+        
+            window.speechSynthesis.speak(utterance);
+        }
+        
+        function createPreviewContent() {
+          const previewContentDiv = document.createElement('div');
+          previewContentDiv.className = 'preview-content';
+        
+          state.blocks.forEach(block => {
+            const previewBlock = document.createElement('div');
+            previewBlock.className = 'preview-block';
+        
+            // Header (shared)
+            if (block.header) {
+              const h3 = document.createElement('h3');
+              h3.textContent = block.header;
+              previewBlock.appendChild(h3);
+            }
+        
+            // TEXT BLOCK
+            if (block.type === 'text') {
+              const contentDiv = document.createElement('div');
+              contentDiv.className = 'preview-block-content';
+              contentDiv.innerHTML = renderLatexLiteDocument(block.content);
+              previewBlock.appendChild(contentDiv);
+            }
+        
+            // TABLE BLOCK
+            else if (block.type === 'table') {
+              const table = document.createElement('table');
+              table.className = 'latex-table';
+        
+              block.rows.forEach((row, rowIndex) => {
+                const tr = document.createElement('tr');
+        
+                row.forEach((cell, colIndex) => {
+                  const td = document.createElement('td');
+                  td.innerHTML = renderMathLite(cell);
+        
+                  // optional debug coords
+                  td.dataset.row = rowIndex;
+                  td.dataset.col = colIndex;
+        
+                  tr.appendChild(td);
+                });
+        
+                table.appendChild(tr);
+              });
+        
+              previewBlock.appendChild(table);
+            }
+        
+            previewContentDiv.appendChild(previewBlock);
+          });
+        
+          return previewContentDiv;
+        }
+
+
+        // --- FINAL RENDER AND INIT ---
+        
+        function escapeHTML(s) {
+              return s
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            }
+            
+        function replacePercentCommentsWithHtml(text) {
+          // Regex explanation:
+          // ^          matches the start of a line (due to the 'm' flag)
+          //\\s*       matches any optional whitespace at the beginning of the line
+          // %          matches the literal percent character
+          //\\s*       matches any optional whitespace after the percent sign
+          // (.*?)      captures the rest of the line (non-greedy match for any character)
+          // $          matches the end of the line (due to the 'm' flag)
+          // g          global flag, to replace all occurrences
+          // m          multiline flag, so ^ and $ match line start/end instead of string start/end
+        
+          const regex = /^\s*%\s*(.*?)$/gm;
+          
+          // Replacement explanation:
+          // <!--      the opening HTML comment tag
+          // $1        backreference to the first (and only) captured group (the comment content)
+          // -->       the closing HTML comment tag
+        
+          const result = text.replace(regex, '<!-- $1 -->');
+          return result;
+        }
+            
+            /* ---------- symbol table ---------- */
+            
+        const CMD = {
+            "\\alpha": "α", "\\beta": "β", "\\gamma": "γ", "\\delta": "δ", "\\sum": "∑",
+            "\\int": "∫", "\\pm": "±", "\\times": "×", "\\le": "≤", "\\ge": "≥",
+            "\\neq": "≠", "\\to": "→", "\\in": "∈", "\\infty": "∞", "\\implies": "⇒","\\bigcup":"⋃","\\cup":"∪","\\dot":"∙"
+            };
+            
+            /* ---------- math-lite renderer ---------- */
+            
+        /*function renderMathLite(s) {
+        //  s = escapeHTML(s);
+        
+          // commands → Unicode
+          s = s.replace(/\\[a-zA-Z]+/g, m => CMD[m] ?? m);
+        
+          // fractions (dumb, non-nested, stacked)
+          s = s.replace(
+          /\\frac\{([^{}]+)\}\{([^{}]+)\}/g,
+          '<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>'
+          );
+          
+          // binomials (dumb, non-nested, but visually correct)
+          s = s.replace(
+          /\\binom\{([^{}]+)\}\{([^{}]+)\}/g,
+          '<span class="binom"><span>$1</span><span>$2</span></span>'
+          );
+        
+          // braced subscripts / superscripts
+          s = s.replace(/_\{([^{}]+)\}/g, "<sub>$1</sub>");
+          s = s.replace(/\^\{([^{}]+)\}/g, "<sup>$1</sup>");
+        
+          // single-token subscripts / superscripts
+          s = s.replace(/_([a-zA-Z0-9+]+)/g, "<sub>$1</sub>");
+          s = s.replace(/\^([a-zA-Z0-9+]+)/g, "<sup>$1</sup>");
+          
+          // Add this inside renderMathLite
+          s = s.replace(/\\quad/g, '<span style="display:inline-block; width:1em;"></span>');
+          s = s.replace(/\\qquad/g, '<span style="display:inline-block; width:2em;"></span>');
+          
+          // Strip delimiters: $, \[, \]
+          s = s.replace(/\$|\\\[|\\\]/g, "");
+        
+          return `<span class="math-lite">${s}</span>`;
+        }*/
+        
+        function renderMathLite(s) {
+            if (!s) return "";
+            let processed = s.replace(/\\[a-zA-Z]+/g, m => CMD[m] ?? m);
+            processed = processed.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '<span class="frac"><span class="num">$1</span><span class="den">$2</span></span>');
+            processed = processed.replace(/_\{([^{}]+)\}/g, "<sub>$1</sub>").replace(/\^\{([^{}]+)\}/g, "<sup>$1</sup>");
+            processed = processed.replace(/_([a-zA-Z0-9])/g, "<sub>$1</sub>").replace(/\^([a-zA-Z0-9])/g, "<sup>$1</sup>");
+            return `<span class="math-lite">${processed}</span>`;
+        }
+            
+            /* ---------- tabular renderer ---------- */
+            
+            const TABULAR_RE =
+              /\\begin\{tabular\}\{([^}]*)\}([\s\S]*?)\\end\{tabular\}/g;
+            
+            function parseAlign(spec) {
+              return [...spec].map(c =>
+                c === 'l' ? 'left' :
+                c === 'c' ? 'center' :
+                c === 'r' ? 'right' :
+                null
+              ).filter(Boolean);
+            }
+            
+        /*function renderTabular(latex) {
+          return latex.replace(TABULAR_RE, (_, spec, body) => {
+            const align = parseAlign(spec);
+            const rows = body
+              .replace(/\r/g, '')
+              .split(/\\\\/)
+              .map(r => r.trim())
+              .filter(Boolean);
+        
+            let html = '<table class="latex-table">';
+            let section = 'tbody';
+        
+            html += '<tbody>';
+        
+            rows.forEach((row, rowIndex) => {
+              // Handle \hline
+              if (row.replace(/\s+/g, '') === '\\hline') {
+                if (section === 'tbody') {
+                  html += '</tbody><thead>';
+                  section = 'thead';
+                } else {
+                  html += '</thead><tbody>';
+                  section = 'tbody';
+                }
+                return;
+              }
+        
+              const cells = row.split('&').map(c => renderMathLite(c.trim()));
+        
+              // Column mismatch warning
+              if (cells.length !== align.length) {
+                console.warn(
+                  `⚠ LaTeX table mismatch: expected ${align.length} columns, got ${cells.length}`,
+                  row
+                );
+        
+                const colspan = Math.max(align.length, 1);
+        
+                html += `<tr>
+                  <td colspan="${colspan}" class="table-error">
+                    ⚠ Column mismatch (${cells.length}/${align.length}):
+                    ${escapeHTML(row)}
+                  </td>
+                </tr>`;
+                return;
+              }
+        
+              // Normal row render
+              html += '<tr>';
+        
+              cells.forEach((c, colIndex) => {
+                const tag = section === 'thead' ? 'th' : 'td';
+                const a = align[colIndex]
+                  ? ` style="text-align:${align[colIndex]}"`
+                  : '';
+        
+                html += `
+                  <${tag}${a} data-row="${rowIndex}" data-col="${colIndex}">
+                    <span class="cell-debug">[${rowIndex},${colIndex}]</span>
+                    ${c}
+                  </${tag}>
+                `;
+              });
+        
+              html += '</tr>';
+            });
+        
+            html += `</${section}></table>`;
+            return html;
+          });
+        }*/
+        
+        function renderTabular(latex) {
+            const TABULAR_RE = /\\begin\{tabular\}\{([^}]*)\}([\s\S]*?)\\end\{tabular\}/g;
+            
+            return latex.replace(TABULAR_RE, (_, spec, body) => {
+                // Option 3: Strip \hline from the string entirely 
+                // We will let the CSS handle the visual borders instead.
+                const cleanBody = body.replace(/\\hline/g, '').trim();
+                
+                const rows = cleanBody.split(/\\\\/).map(r => r.trim()).filter(Boolean);
+                let html = '<table class="latex-table"><tbody>';
+                
+                rows.forEach(row => {
+                    html += '<tr>' + row.split('&').map(c => `<td>${renderMathLite(c.trim())}</td>`).join('') + '</tr>';
+                });
+                
+                return html + '</tbody></table>';
+            });
+        }
+
+
+/* ---------- main render ---------- */
+
+        function render() {
+          let input = document.getElementById('input').value;
+        
+          // tables first
+          let html = renderTabular(input);
+        
+          // remaining math
+          html = html
+            .split('\n')
+            .map(line => line.includes('<table') ? line : renderMathLite(line))
+            .join('<br>');
+        
+          document.getElementById('output').innerHTML = html;
+        }
+        
+        function renderLists(text) {
+            let processed = text;
+            
+            // 1. Handle Itemize (Bulleted)
+            processed = processed.replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, (_, body) => {
+                const items = body.trim().split(/\\item/).filter(Boolean);
+                const listHtml = items.map(item => `<li>${renderMathLite(item.trim())}</li>`).join('');
+                return `<ul class="latex-list">${listHtml}</ul>`;
+            });
+        
+            // 2. Handle Enumerate (Numbered)
+            processed = processed.replace(/\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g, (_, body) => {
+                const items = body.trim().split(/\\item/).filter(Boolean);
+                const listHtml = items.map(item => `<li>${renderMathLite(item.trim())}</li>`).join('');
+                return `<ol class="latex-list">${listHtml}</ol>`;
+            });
+        
+            return processed;
+        }
+        
+        function renderLatexLiteDocument(text) {
+            let html = replacePercentCommentsWithHtml(text);
+            
+            // Text formatting
+            html = html.replace(/\\textbf\{([^{}]+)\}/g, '<strong>$1</strong>');
+            html = html.replace(/\\textit\{([^{}]+)\}/g, '<em>$1</em>');
+        
+            // Handle structural blocks (Tables and Lists)
+            html = renderTabular(html);
+            html = renderLists(html);
+        
+            // Final pass for math/lines, skipping tags we've already built
+            return html.split('\n').map(line => {
+                const isBlock = /<(table|ul|ol|li)/.test(line);
+                return isBlock ? line : renderMathLite(line);
+            }).join('<br>');
+        }
+
+        function renderApp() {
+            const workspaceRoot = document.getElementById('workspace-root');
+            const previewRoot = document.getElementById('preview-root');
+
+            // Editor Workspace Render
+            workspaceRoot.innerHTML = '';
+            workspaceRoot.appendChild(createTopControls());
+            
+            state.blocks.forEach((block, index) => {
+                workspaceRoot.appendChild(createBlockElement(block, index));
+            });
+            
+            // Preview Render
+            previewRoot.innerHTML = '';
+            previewRoot.appendChild(createPreviewContent());
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+             // Initial render
+             renderApp();
+             
+             // Attach event listener for the Parse button (now that the button exists in the body)
+             const parseButton = document.getElementById('parse-text-btn');
+             if (parseButton) {
+                 parseButton.onclick = handleParseTextInput;
+             }
+        });
+    </script>
+</body>
+</html>
+
