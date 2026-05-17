@@ -1,0 +1,159 @@
+<div style="font-family: sans-serif; display: flex; flex-direction: column; gap: 15px;">
+  <div style="background: #eee; padding: 15px; border-radius: 8px; display: flex; gap: 10px;">
+    <button onclick="addNode()">+ Add Node</button>
+    <button onclick="addEdge()">+ Add Edge (Last 2 Nodes)</button>
+    <button onclick="clearCanvas()" style="color: red;">Clear</button>
+  </div>
+
+  <div style="display: flex; gap: 20px;">
+    <svg id="editor-svg" width="400" height="400" style="border:2px solid #333; background: white;">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+        </marker>
+      </defs>
+    </svg>
+
+    <div style="flex-grow: 1;">
+      <label><strong>TikZ Output (Polar)</strong></label>
+      <textarea id="tikz-code" readonly style="width: 100%; height: 380px; margin-top: 5px; font-family: 'Courier New'; background: #282c34; color: #abb2bf; padding: 10px;"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+  let nodes = [];   // {x, y, id}
+  let edges = [];   // {from, to}
+
+  let selectedNode = null;
+  let draggingNode = null;
+
+  const svg = document.getElementById('editor-svg');
+  const codeArea = document.getElementById('tikz-code');
+
+  const width = 400;
+  const height = 400;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const nodeRadius = 8;
+
+  function addNode() {
+    const angle = nodes.length * 0.8;
+    const r = 40 + nodes.length * 15;
+    const x = centerX + r * Math.cos(angle);
+    const y = centerY + r * Math.sin(angle);
+
+    nodes.push({ x, y, id: nodes.length });
+    render();
+  }
+
+  function clearCanvas() {
+    nodes = [];
+    edges = [];
+    selectedNode = null;
+    render();
+  }
+
+  function render() {
+    svg.innerHTML = `
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7"
+          refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
+        </marker>
+      </defs>
+    `;
+
+    let tikz = "\\begin{tikzpicture}[\n";
+    tikz += "  node/.style={circle, fill=blue!20, draw},\n";
+    tikz += "  edge/.style={->, thick}\n]\n";
+
+    // Edges
+    edges.forEach(e => {
+      const a = nodes[e.from];
+      const b = nodes[e.to];
+
+      svg.appendChild(makeLine(a, b));
+
+      tikz += `  \\draw[edge] (n${e.from}) -- (n${e.to});\n`;
+    });
+
+    // Nodes
+    nodes.forEach((n, i) => {
+      svg.appendChild(makeNode(n, i));
+
+      const angle = Math.round(Math.atan2(n.y - centerY, n.x - centerX) * 180 / Math.PI);
+      const dist = Math.round(Math.hypot(n.x - centerX, n.y - centerY));
+
+      tikz += `  \\node[node] (n${i}) at (${angle}:${dist}) {${i}};\n`;
+    });
+
+    tikz += "\\end{tikzpicture}\n";
+    codeArea.value = tikz;
+  }
+
+  function makeLine(a, b) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", a.x);
+    line.setAttribute("y1", a.y);
+    line.setAttribute("x2", b.x);
+    line.setAttribute("y2", b.y);
+    line.setAttribute("stroke", "#666");
+    line.setAttribute("stroke-width", "2");
+    line.setAttribute("marker-end", "url(#arrowhead)");
+    return line;
+  }
+
+  function makeNode(node, index) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", node.x);
+    circle.setAttribute("cy", node.y);
+    circle.setAttribute("r", nodeRadius);
+    circle.setAttribute("fill", index === selectedNode ? "#F5A623" : "#4A90E2");
+    circle.style.cursor = "pointer";
+
+    circle.addEventListener("mousedown", e => {
+      draggingNode = index;
+      e.stopPropagation();
+    });
+
+    circle.addEventListener("click", e => {
+      e.stopPropagation();
+      if (selectedNode === null) {
+        selectedNode = index;
+      } else if (selectedNode !== index) {
+        edges.push({ from: selectedNode, to: index });
+        selectedNode = null;
+      }
+      render();
+    });
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", node.x + 10);
+    label.setAttribute("y", node.y - 10);
+    label.setAttribute("font-size", "12");
+    label.textContent = index;
+
+    g.appendChild(circle);
+    g.appendChild(label);
+    return g;
+  }
+
+  svg.addEventListener("mousemove", e => {
+    if (draggingNode !== null) {
+      const rect = svg.getBoundingClientRect();
+      nodes[draggingNode].x = e.clientX - rect.left;
+      nodes[draggingNode].y = e.clientY - rect.top;
+      render();
+    }
+  });
+
+  svg.addEventListener("mouseup", () => draggingNode = null);
+  svg.addEventListener("mouseleave", () => draggingNode = null);
+
+  render();
+</script>
+
+
