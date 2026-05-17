@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manifold: Convergence Tracker v12</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 30px; background: #0f0f0f; color: #e0e0e0; }
+        .container { max-width: 1100px; margin: auto; border: 1px solid #333; padding: 25px; background: #1a1a1a; border-radius: 12px; }
+        .file-zone { border: 2px dashed #007bff; padding: 30px; text-align: center; margin-bottom: 20px; border-radius: 8px; background: #121212; cursor: pointer; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        select, input, button { padding: 12px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 14px; }
+        button { background: #007bff; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        .btn-copy { background: #6c757d; }
+        .btn-continue { background: #ff8c00; color: #000; }
+        
+        #result { padding: 25px; font-size: 1.4em; line-height: 1.8; color: #fff; background: #111; border: 1px solid #333; border-radius: 8px; min-height: 100px; }
+        
+        /* SCORING COLORS */
+        .path-likely { color: #ffffff; } 
+        .path-unlikely { color: #ff6b6b; border-bottom: 1px dashed #ff6b6b; font-style: italic; }
+        .zinsser-clutter { color: #ffd93d; text-decoration: underline wavy #ffd93d; }
+
+        .convergence-tag { font-family: monospace; font-size: 0.45em; vertical-align: super; color: #00ff41; opacity: 0.6; margin-left: 2px; margin-right: 5px; }
+        .stats { font-size: 0.4em; color: #888; font-family: monospace; }
+        h2 { color: #007bff; margin-top: 0; }
+        .info-panel { background: #252525; padding: 15px; border-radius: 4px; margin-bottom: 15px; font-size: 0.85em; border-left: 4px solid #007bff; }
+        .legend { display: flex; gap: 15px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MANIFOLD: STYLE CONVERGENCE <span class="stats" id="stats">NODES: 0 | TOTAL_SEEDS: 0</span></h2>
+    
+    <div class="info-panel">
+        <strong>Style Analysis Legend:</strong>
+        <div class="legend">
+            <span class="path-likely">Standard Markov</span>
+            <span class="path-unlikely">Low-Prob Path</span>
+            <span class="zinsser-clutter">Zinsser Clutter</span>
+        </div>
+    </div>
+
+    <div class="file-zone" onclick="document.getElementById('fileInput').click()">
+        <span id="fileLabel">[ UPLOAD CORPUS ]</span>
+        <input type="file" id="fileInput" accept=".json,.txt,.htm,.tex" multiple style="display:none;" onchange="handleFiles(this.files)">
+    </div>
+    
+    <div class="controls">
+        <div>
+            <label style="font-size:0.7em;">N-GRAM</label>
+            <select id="nGramSize">
+                <option value="2">2-Gram</option>
+                <option value="3">3-Gram</option>
+                <option value="4" selected>4-Gram</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:0.7em;">BREVITY WEIGHT</label>
+            <input type="number" id="brevityWeight" value="5">
+        </div>
+        <button onclick="generateOutput(false)" style="background:#00ff41; color:#000;">[RUN_NAVIGATOR]</button>
+        <button onclick="generateOutput(true)" class="btn-continue">[CONTINUE_THOUGHT]</button>
+        <button onclick="copyToClipboard()" class="btn-copy">[COPY_TEXT]</button>
+    </div>
+
+    <div id="result">Waiting for seed injection...</div>
+</div>
+<script>
+    let graph = {}; 
+    let allNodes = [];
+    let totalSeeds = 0;
+    let synonymLookup = {}; // Maps word -> [array of synonyms]
+
+    async function handleFiles(files) {
+        for (let file of files) {
+            const text = await file.text();
+            
+            // Check for the specific thesaurus file
+            if (file.name.includes("synonyms")) {
+                try {
+                    processThesaurus(JSON.parse(text));
+                } catch(e) { console.error("Thesaurus JSON Error"); }
+            } 
+            // Handle training data
+            else if (file.name.endsWith(".json")) {
+                try {
+                    const data = JSON.parse(text);
+                    const arr = Array.isArray(data) ? data : [data];
+                    arr.forEach(item => train(item.text));
+                } catch(e) { console.error("Training JSON Error"); }
+            } else {
+                train(text);
+            }
+        }
+        allNodes = Object.keys(graph);
+        updateStats(files.length);
+    }
+
+    function processThesaurus(data) {
+        const groups = {};
+        // 1. Group words by their group ID
+        data.forEach(item => {
+            // Clean word: "ABASE." -> "abase"
+            const word = item.name.toLowerCase().replace(/[.,!?;:]/g, "").trim();
+            if (!groups[item.group]) groups[item.group] = [];
+            groups[item.group].push(word);
+        });
+
+        // 2. Map every word in a group to its siblings
+        for (let groupId in groups) {
+            const wordsInGroup = groups[groupId];
+            wordsInGroup.forEach(word => {
+                synonymLookup[word] = wordsInGroup;
+            });
+        }
+        console.log("Thesaurus Loaded:", Object.keys(synonymLookup).length, "terms");
+    }
+
+    function train(text) {
+        const n = parseInt(document.getElementById("nGramSize").value);
+        // Clean and tokenize
+        const tokens = text.toLowerCase().replace(/([.!?,])/g, " $1 ").split(/\s+/).filter(Boolean);
+
+        for (let i = 0; i < tokens.length - n; i++) {
+            const currentGram = tokens.slice(i, i + n).join(" ");
+            const nextGram = tokens.slice(i + 1, i + n + 1).join(" ");
+            const terminal = tokens[i + n];
+
+            if (!graph[currentGram]) graph[currentGram] = {};
+            if (!graph[currentGram][terminal]) {
+                graph[currentGram][terminal] = { target: nextGram, count: 0 };
+            }
+            graph[currentGram][terminal].count++;
+            totalSeeds++;
+        }
+    }
+
+    function generateOutput(isContinuation = false) {
+        if (!allNodes.length) return;
+        const n = parseInt(document.getElementById("nGramSize").value);
+        const brevity = parseInt(document.getElementById("brevityWeight").value);
+        const resultDiv = document.getElementById("result");
+        
+        let current;
+        let resultHTML = [];
+        let tabu = new Set();
+
+        if (isContinuation) {
+            const existingNodes = Array.from(resultDiv.querySelectorAll('.word-node')).map(el => el.innerText.toLowerCase());
+            if (existingNodes.length >= n) {
+                current = existingNodes.slice(-n).join(" ");
+                resultHTML = [resultDiv.innerHTML]; 
+            } else {
+                isContinuation = false; 
+            }
+        }
+
+        if (!isContinuation) {
+            current = allNodes[Math.floor(Math.random() * allNodes.length)];
+            resultHTML = current.split(" ").map(w => `<span class="word-node">${w}</span>`);
+        }
+
+        tabu.add(current);
+
+        for (let i = 0; i < 50; i++) {
+            let options = graph[current];
+            let usedFuzzyBridge = false;
+
+            // --- THESAURUS LOGIC ---
+            // If the chain breaks, try to find a synonym for the last word in the gram
+            if (!options) {
+                const words = current.split(" ");
+                const lastWord = words[words.length - 1];
+                const synonyms = synonymLookup[lastWord];
+
+                if (synonyms) {
+                    for (let syn of synonyms) {
+                        // Create a "fake" gram using a synonym: ["the", "happy"] -> ["the", "joyful"]
+                        const fuzzyGram = [...words.slice(0, -1), syn].join(" ");
+                        if (graph[fuzzyGram]) {
+                            options = graph[fuzzyGram];
+                            current = fuzzyGram;
+                            usedFuzzyBridge = true;
+                            break; 
+                        }
+                    }
+                }
+            }
+
+            if (!options) break;
+
+            const totalNodeWeight = Object.values(options).reduce((sum, d) => sum + d.count, 0);
+            let bestWord = null;
+            let maxScore = -Infinity;
+
+            for (const [word, data] of Object.entries(options)) {
+                let score = Math.random() * 10; 
+                score += (data.count * 20); 
+                score -= (word.length * brevity);
+                if (tabu.has(data.target)) score -= 300; 
+
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestWord = word;
+                }
+            }
+
+            if (!bestWord) break;
+            
+            const selectedData = options[bestWord];
+            const prob = selectedData.count / totalNodeWeight;
+            
+            // Determine Styling
+            let styleClass = (bestWord.length > 9 || bestWord.endsWith('ly')) ? "zinsser-clutter" : 
+                             (prob < 0.15 && totalNodeWeight > 2) ? "path-unlikely" : "path-likely";
+            
+            if (usedFuzzyBridge) styleClass += " fuzzy-bridge"; // Optional visual cue
+
+            resultHTML.push(`<span class="word-node ${styleClass}">${bestWord}</span><span class="convergence-tag">${selectedData.count}</span>`);
+            
+            tabu.add(selectedData.target);
+            current = selectedData.target;
+
+            if (/[.!?]/.test(bestWord) && i > 20) break;
+        }
+
+        resultDiv.innerHTML = resultHTML.join(" ") + "<br>";
+    }
+
+    function updateStats(fileCount) {
+        const synCount = Object.keys(synonymLookup).length;
+        document.getElementById("stats").innerText = `NODES: ${allNodes.length} | SEEDS: ${totalSeeds} | SYN_GROUPS: ${synCount}`;
+        document.getElementById("fileLabel").innerText = `LOADED: ${fileCount} FILES`;
+    }
+
+    function copyToClipboard() {
+        const resultDiv = document.getElementById("result");
+        const words = Array.from(resultDiv.querySelectorAll('.word-node'))
+                          .map(node => node.innerText);
+        const cleanText = words.join(" ").replace(/\s+([.!?,])/g, '$1');
+        
+        navigator.clipboard.writeText(cleanText).then(() => {
+            const btn = document.querySelector('.btn-copy');
+            btn.innerText = "[COPIED!]";
+            setTimeout(() => btn.innerText = "[COPY_TEXT]", 1000);
+        });
+    }
+</script>
+</body>
+</html>
