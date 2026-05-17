@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sticky Notes</title>
+  <style>
+    body { font-family: sans-serif; }
+    #board { position: relative; width: 100%; height: 90vh; border: 2px dashed #ccc; }
+    .note {
+      position: absolute;
+      width: 150px; height: 150px;
+      background: yellow;
+      padding: 10px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+      cursor: move;
+    }
+    button { margin: 10px; }
+  </style>
+</head>
+<body>
+  <button onclick="addNote()">Add Note</button>
+  <div id="board"></div>
+
+  <script>
+    const board = document.getElementById("board");
+
+    function addNote() {
+      const note = document.createElement("div");
+      note.className = "note";
+      note.contentEditable = true;
+      note.style.top = "50px";
+      note.style.left = "50px";
+      makeDraggable(note);
+      board.appendChild(note);
+    }
+
+    function makeDraggable(el) {
+      let offsetX, offsetY;
+      el.onmousedown = (e) => {
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+        document.onmousemove = (e) => {
+          el.style.left = e.pageX - offsetX + "px";
+          el.style.top = e.pageY - offsetY + "px";
+        };
+        document.onmouseup = () => document.onmousemove = null;
+      };
+    }
+  </script>
+</body>
+</html>
