@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF URL Extractor</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; max-width: 800px; margin: auto; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        input[type="text"] { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 16px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        #output { 
+            white-space: pre-wrap; 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            min-height: 200px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Extract Text from PDF URL</h1>
+    
+    <div class="controls">
+        <input type="text" id="pdfUrl" placeholder="Enter PDF URL (e.g., https://example.com/sample.pdf)" 
+               value="https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/examples/learning/helloworld.pdf">
+        <button onclick="extractTextFromURL()">Extract Text</button>
+    </div>
+
+    <pre id="output">Paste a URL and click Extract...</pre>
+
+    <!-- Load PDF.js -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+    <script>
+        // Initialize PDF.js
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+        async function extractTextFromURL() {
+            const url = document.getElementById('pdfUrl').value.trim();
+            const outputDiv = document.getElementById('output');
+
+            if (!url) {
+                alert("Please enter a valid URL.");
+                return;
+            }
+
+            outputDiv.textContent = 'Fetching and processing PDF...';
+
+            try {
+                // Step 1: Load the PDF document via URL
+                // Note: The remote server must allow CORS (Cross-Origin Resource Sharing)
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdfDoc = await loadingTask.promise;
+                
+                outputDiv.textContent = `Success! Pages found: ${pdfDoc.numPages}\n\n`;
+
+                let fullText = '';
+
+                // Step 2: Iterate through pages
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const page = await pdfDoc.getPage(i);
+                    const textContent = await page.getTextContent();
+                    
+                    // Step 3: Combine text items
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+                }
+
+                outputDiv.textContent += fullText;
+
+            } catch (error) {
+                console.error(error);
+                if (error.name === 'MissingPDFException' || error.name === 'UnexpectedResponseException') {
+                    outputDiv.textContent = `Error: Could not fetch the PDF. This is often due to CORS restrictions on the hosting server.`;
+                } else {
+                    outputDiv.textContent = `Error: ${error.message}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
