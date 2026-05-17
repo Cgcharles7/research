@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Text Extractor</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        #output { 
+            white-space: pre-wrap; 
+            background: #f4f4f4; 
+            padding: 15px; 
+            border: 1px solid #ccc; 
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Extract Text from Local PDF</h1>
+    <input type="file" id="pdfFile" accept=".pdf" />
+    <pre id="output">Output will appear here...</pre>
+
+    <!-- Load PDF.js -->
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+    <script>
+        // Set the worker source - essential for PDF.js to function
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+        const fileInput = document.getElementById('pdfFile');
+        const outputDiv = document.getElementById('output');
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            outputDiv.textContent = 'Processing...';
+
+            try {
+                const arrayBuffer = await file.arrayBuffer(); // Modern way to get ArrayBuffer
+
+                // Load the PDF document
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdfDoc = await loadingTask.promise;
+                
+                outputDiv.textContent = `Success: ${pdfDoc.numPages} pages found.\n\n`;
+
+                let fullText = '';
+
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const page = await pdfDoc.getPage(i);
+                    const textContent = await page.getTextContent();
+                    
+                    // Join items with a space, but handle line breaks better
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    
+                    fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+                }
+
+                outputDiv.textContent += fullText;
+
+            } catch (error) {
+                console.error(error);
+                outputDiv.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
