@@ -1,0 +1,348 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Twitter (Personal)</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 30px; background: #0f0f0f; color: #e0e0e0; }
+        .container { max-width: 1100px; margin: auto; border: 1px solid #333; padding: 25px; background: #1a1a1a; border-radius: 12px; }
+        .file-zone { border: 2px dashed #007bff; padding: 30px; text-align: center; margin-bottom: 20px; border-radius: 8px; background: #121212; cursor: pointer; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        select, input, button { padding: 12px; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; font-size: 14px; }
+        button { background: #007bff; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+
+        h2 { color: #007bff; margin-top: 0; }
+        .legend { display: flex; gap: 15px; margin-top: 5px; }
+        .random-sentences { margin-top: 20px;}
+        .random-sentence { margin: 5px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px;}
+        .randomSentenceContainer{ max-height: 900px; overflow-y: auto;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="file-zone" onclick="document.getElementById('fileInput').click()">
+        <span id="fileLabel">[ UPLOAD CORPUS ]</span>
+        <input type="file" id="fileInput" accept=".json,.txt,.htm,.tex" multiple style="display:none;" onchange="handleFiles(this.files)">
+    </div>
+	<select name="voice" id="voice">
+	    <option data-lang="en-US" data-name="Microsoft David Desktop - English (United States)">Microsoft David Desktop - English (United States) (en-US) -- DEFAULT</option>
+	    <option data-lang="en-US" data-name="Microsoft Zira Desktop - English (United States)" selected="">Microsoft Zira Desktop - English (United States) (en-US) -- DEFAULT</option>
+	    <option data-lang="de-DE" data-name="Google Deutsch">Google Deutsch (de-DE)</option>
+	    <option data-lang="en-US" data-name="Google US English">Google US English (en-US) -- DEFAULT</option>
+	    <option data-lang="en-GB" data-name="Google UK English Female">Google UK English Female (en-GB)</option>
+	    <option data-lang="en-GB" data-name="Google UK English Male">Google UK English Male (en-GB)</option>
+	    <option data-lang="es-ES" data-name="Google español">Google español (es-ES)</option>
+	    <option data-lang="es-US" data-name="Google español de Estados Unidos">Google español de Estados Unidos (es-US)</option>
+	    <option data-lang="fr-FR" data-name="Google français">Google français (fr-FR)</option>
+	    <option data-lang="hi-IN" data-name="Google हिन्दी">Google हिन्दी (hi-IN)</option>
+	    <option data-lang="id-ID" data-name="Google Bahasa Indonesia">Google Bahasa Indonesia (id-ID)</option>
+	    <option data-lang="it-IT" data-name="Google italiano">Google italiano (it-IT)</option>
+	    <option data-lang="ja-JP" data-name="Google 日本語">Google 日本語 (ja-JP)</option>
+	    <option data-lang="ko-KR" data-name="Google 한국의">Google 한국의 (ko-KR)</option>
+	    <option data-lang="nl-NL" data-name="Google Nederlands">Google Nederlands (nl-NL)</option>
+	    <option data-lang="pl-PL" data-name="Google polski">Google polski (pl-PL)</option>
+	    <option data-lang="pt-BR" data-name="Google português do Brasil">Google português do Brasil (pt-BR)</option>
+	    <option data-lang="ru-RU" data-name="Google русский">Google русский (ru-RU)</option>
+	    <option data-lang="zh-CN" data-name="Google 普通话（中国大陆）">Google&nbsp;普通话（中国大陆） (zh-CN)</option>
+	    <option data-lang="zh-HK" data-name="Google 粤語（香港）">Google&nbsp;粤語（香港） (zh-HK)</option>
+	    <option data-lang="zh-TW" data-name="Google 國語（臺灣）">Google 國語（臺灣） (zh-TW)</option>
+	    <option data-lang="en-US" data-name="English (America)+Andy">English (America)+Andy (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+RicishayMax">English (America, New York City)+RicishayMax (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+male1">English (America, New York City)+male1 (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Gustave">English (America, New York City)+Gustave (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+anikaRobot">English (America, New York City)+anikaRobot (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Robosoft8">English (America)+Robosoft8 (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Michael">English (America)+Michael (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+klatt2">English (America)+klatt2 (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft3">English (America, New York City)+Robosoft3 (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Zac">English (America)+Zac (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Boris">English (America, New York City)+Boris (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+anikaRobot">English (America)+anikaRobot (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Pedro">English (America)+Pedro (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Marco">English (America)+Marco (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Max">English (America, New York City)+Max (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Steph2">English (America)+Steph2 (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Iven3">English (America, New York City)+Iven3 (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft">English (America, New York City)+Robosoft (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Paul">English (America)+Paul (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+anxiousAndy">English (America, New York City)+anxiousAndy (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Robosoft">English (America)+Robosoft (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+klatt">English (America)+klatt (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+female4">English (America, New York City)+female4 (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Tweaky">English (America, New York City)+Tweaky (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+whisper">English (America, New York City)+whisper (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+grandma">English (America)+grandma (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+anika">English (America)+anika (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Diogo">English (America, New York City)+Diogo (en-US-NYC)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+RicishayMax2">English (America, New York City)+RicishayMax2 (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Hugo">English (America)+Hugo (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Mike">English (America, New York City)+Mike (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Pablo">English (America)+Pablo (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Belinda">English (America)+Belinda (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Caleb">English (America)+Caleb (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+male3">English (America)+male3 (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt5">English (America, New York City)+klatt5 (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Iven2">English (America)+Iven2 (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Iven2">English (America, New York City)+Iven2 (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Denis">English (America)+Denis (en-US)</option>
+      <option data-lang="en-US-NYC" data-name="English (America, New York City)+Benjamin">English (America, New York City)+Benjamin (en-US-NYC)</option>
+      <option data-lang="en-US" data-name="English (America)+Demonic">English (America)+Demonic (en-US)</option>
+      <option data-lang="en-US" data-name="English (America)+Robosoft2">English (America)+Robosoft2 (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft2">English (America, New York City)+Robosoft2 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Nguyen">English (America)+Nguyen (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Lee">English (America, New York City)+Lee (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Max">English (America)+Max (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+male4">English (America, New York City)+male4 (en-US-NYC)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Adam">English (America, New York City)+Adam (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+male1">English (America)+male1 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+Mike">English (America)+Mike (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Zac">English (America, New York City)+Zac (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Steph">English (America)+Steph (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+Antonio">English (America)+Antonio (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+whisper">English (America)+whisper (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+male2">English (America, New York City)+male2 (en-US-NYC)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft7">English (America, New York City)+Robosoft7 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Gene2">English (America)+Gene2 (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+anika">English (America, New York City)+anika (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Robosoft5">English (America)+Robosoft5 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+male2">English (America)+male2 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)">English (America) (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Steph3">English (America, New York City)+Steph3 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Robosoft6">English (America)+Robosoft6 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+klatt4">English (America)+klatt4 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+Alex">English (America)+Alex (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+female_whisper">English (America)+female_whisper (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Mario">English (America, New York City)+Mario (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Robosoft4">English (America)+Robosoft4 (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Alicia">English (America, New York City)+Alicia (en-US-NYC)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Gene2">English (America, New York City)+Gene2 (en-US-NYC)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt2">English (America, New York City)+klatt2 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Jacky">English (America)+Jacky (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+Iven">English (America, New York City)+Iven (en-US-NYC)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+sandro">English (America, New York City)+sandro (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Storm">English (America)+Storm (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+female3">English (America)+female3 (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+victor">English (America)+victor (en-US)</option>
+    <option data-lang="en-US" data-name="English (America)+RicishayMax3">English (America)+RicishayMax3 (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+RicishayMax3">English (America, New York City)+RicishayMax3 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Miguel">English (America)+Miguel (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+male5">English (America, New York City)+male5 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Iven4">English (America)+Iven4 (en-US)</option>
+    <option data-lang="en-US-NYC" data-name="English (America, New York City)+male6">English (America, New York City)+male6 (en-US-NYC)</option>
+    <option data-lang="en-US" data-name="English (America)+Benjamin">English (America)+Benjamin (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Hugo">English (America, New York City)+Hugo (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Ed">English (America, New York City)+Ed (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Steph3">English (America)+Steph3 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Miguel">English (America, New York City)+Miguel (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Gustave">English (America)+Gustave (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Rob">English (America, New York City)+Rob (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+male7">English (America)+male7 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+norbert">English (America, New York City)+norbert (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+grandma">English (America, New York City)+grandma (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+female2">English (America, New York City)+female2 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Andrea">English (America, New York City)+Andrea (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Gene">English (America, New York City)+Gene (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+female4">English (America)+female4 (en-US)</option><option data-lang="en-US" data-name="English (America)+Iven">English (America)+Iven (en-US)</option><option data-lang="en-US" data-name="English (America)+travis">English (America)+travis (en-US)</option><option data-lang="en-US" data-name="English (America)+Lee">English (America)+Lee (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Half-LifeAnnouncementSystem">English (America, New York City)+Half-LifeAnnouncementSystem (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Robosoft3">English (America)+Robosoft3 (en-US)</option><option data-lang="en-US" data-name="English (America)+Diogo">English (America)+Diogo (en-US)</option><option data-lang="en-US" data-name="English (America)+Kaukovalta">English (America)+Kaukovalta (en-US)</option><option data-lang="en-US" data-name="English (America)+RicishayMax2">English (America)+RicishayMax2 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Annie">English (America, New York City)+Annie (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+David">English (America, New York City)+David (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+shelby">English (America, New York City)+shelby (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+victor">English (America, New York City)+victor (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Michel">English (America, New York City)+Michel (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Belinda">English (America, New York City)+Belinda (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Robert">English (America, New York City)+Robert (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Pablo">English (America, New York City)+Pablo (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+grandpa">English (America, New York City)+grandpa (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Gene">English (America)+Gene (en-US)</option><option data-lang="en-US" data-name="English (America)+klatt3">English (America)+klatt3 (en-US)</option><option data-lang="en-US" data-name="English (America)+male5">English (America)+male5 (en-US)</option><option data-lang="en-US" data-name="English (America)+female1">English (America)+female1 (en-US)</option><option data-lang="en-US" data-name="English (America)+Alicia">English (America)+Alicia (en-US)</option><option data-lang="en-US" data-name="English (America)+Linda">English (America)+Linda (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+travis">English (America, New York City)+travis (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+female1">English (America, New York City)+female1 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft8">English (America, New York City)+Robosoft8 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Linda">English (America, New York City)+Linda (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Henrique">English (America, New York City)+Henrique (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+John">English (America)+John (en-US)</option><option data-lang="en-US" data-name="English (America)+Adam">English (America)+Adam (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Edward">English (America, New York City)+Edward (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Edward2">English (America)+Edward2 (en-US)</option><option data-lang="en-US" data-name="English (America)+Henrique">English (America)+Henrique (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+female_whisper">English (America, New York City)+female_whisper (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Robosoft7">English (America)+Robosoft7 (en-US)</option><option data-lang="en-US" data-name="English (America)+Half-LifeAnnouncementSystem">English (America)+Half-LifeAnnouncementSystem (en-US)</option><option data-lang="en-US" data-name="English (America)+Annie">English (America)+Annie (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Paul">English (America, New York City)+Paul (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Pedro">English (America, New York City)+Pedro (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+male3">English (America, New York City)+male3 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Iven4">English (America, New York City)+Iven4 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft5">English (America, New York City)+Robosoft5 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Auntie">English (America)+Auntie (en-US)</option><option data-lang="en-US" data-name="English (America)+klatt6">English (America)+klatt6 (en-US)</option><option data-lang="en-US" data-name="English (America)+sandro">English (America)+sandro (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft4">English (America, New York City)+Robosoft4 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Quincy">English (America)+Quincy (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt">English (America, New York City)+klatt (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Mr_Serious">English (America)+Mr_Serious (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt3">English (America, New York City)+klatt3 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt4">English (America, New York City)+klatt4 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Mr_Serious">English (America, New York City)+Mr_Serious (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+female5">English (America)+female5 (en-US)</option><option data-lang="en-US" data-name="English (America)+Marcelo">English (America)+Marcelo (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Caleb">English (America, New York City)+Caleb (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+fast_test">English (America, New York City)+fast_test (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+female3">English (America, New York City)+female3 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+croak">English (America, New York City)+croak (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Jacky">English (America, New York City)+Jacky (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Edward2">English (America, New York City)+Edward2 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Marcelo">English (America, New York City)+Marcelo (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+David">English (America)+David (en-US)</option><option data-lang="en-US" data-name="English (America)+Iven3">English (America)+Iven3 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Auntie">English (America, New York City)+Auntie (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Ed">English (America)+Ed (en-US)</option><option data-lang="en-US" data-name="English (America)+Tweaky">English (America)+Tweaky (en-US)</option><option data-lang="en-US" data-name="English (America)+fast_test">English (America)+fast_test (en-US)</option><option data-lang="en-US" data-name="English (America)+croak">English (America)+croak (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Robosoft6">English (America, New York City)+Robosoft6 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+male8">English (America)+male8 (en-US)</option><option data-lang="en-US" data-name="English (America)+grandpa">English (America)+grandpa (en-US)</option><option data-lang="en-US" data-name="English (America)+male6">English (America)+male6 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Andy">English (America, New York City)+Andy (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Steph">English (America, New York City)+Steph (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+anxiousAndy">English (America)+anxiousAndy (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Demonic">English (America, New York City)+Demonic (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Michael">English (America, New York City)+Michael (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Storm">English (America, New York City)+Storm (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+UniversalRobot">English (America, New York City)+UniversalRobot (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+female2">English (America)+female2 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Nguyen">English (America, New York City)+Nguyen (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Mario">English (America)+Mario (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Alex">English (America, New York City)+Alex (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Quincy">English (America, New York City)+Quincy (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+John">English (America, New York City)+John (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+klatt5">English (America)+klatt5 (en-US)</option><option data-lang="en-US" data-name="English (America)+Andrea">English (America)+Andrea (en-US)</option><option data-lang="en-US" data-name="English (America)+shelby">English (America)+shelby (en-US)</option><option data-lang="en-US" data-name="English (America)+male4">English (America)+male4 (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+female5">English (America, New York City)+female5 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+norbert">English (America)+norbert (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)">English (America, New York City) (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Boris">English (America)+Boris (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Marco">English (America, New York City)+Marco (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Denis">English (America, New York City)+Denis (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Robert">English (America)+Robert (en-US)</option><option data-lang="en-US" data-name="English (America)+Michel">English (America)+Michel (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Kaukovalta">English (America, New York City)+Kaukovalta (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Antonio">English (America, New York City)+Antonio (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+male8">English (America, New York City)+male8 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+Steph2">English (America, New York City)+Steph2 (en-US-NYC)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+klatt6">English (America, New York City)+klatt6 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Edward">English (America)+Edward (en-US)</option><option data-lang="en-US" data-name="English (America)+RicishayMax">English (America)+RicishayMax (en-US)</option><option data-lang="en-US-NYC" data-name="English (America, New York City)+male7">English (America, New York City)+male7 (en-US-NYC)</option><option data-lang="en-US" data-name="English (America)+Rob">English (America)+Rob (en-US)</option><option data-lang="en-US" data-name="English (America)+UniversalRobot">English (America)+UniversalRobot (en-US)</option>
+	    </select>
+    <div class="controls">
+        <button onclick="displayRandomSentences();startAutoLoad();" style="background:#00ff41; color:#000;">RANDOM TWEETS</button>
+        <button onclick="ffwd()" style="background:#00ff41; color:#000;">FFWD</button>
+        <button onclick="bkwd()" style="background:#00ff41; color:#000;">BKWD</button>
+    </div>
+
+    <div id="randomSentencesContainer"></div>
+</div>
+<script>
+    let graph = []; 
+    let rawCorpusSentences = []; // Separate storage for raw strings
+    let allNodes = [];
+    let totalSeeds = 0;
+    let synonymLookup = {};
+    let cntr = 0;
+
+function gebi(id)
+{
+	return document.getElementById(id);
+}
+
+
+async function loadVoices() 
+{
+	if(typeof speechSynthesis === 'undefined') 
+	{
+	    console.log("problem")
+		return;
+	}
+
+    let temp = window.speechSynthesis;
+    
+    console.log(temp);
+
+	voices = window.speechSynthesis.getVoices();
+
+	for(i = 0; i < voices.length ; i++) 
+	{
+        console.log(i);
+        if (voices[i].lang.indexOf("en-US" || "United States" || "US") != -1) {
+    		var option = document.createElement('option');
+    		option.textContent = voices[i].name + ' (' + voices[i].lang + ')';
+    		option.setAttribute('data-lang', voices[i].lang);
+    		option.setAttribute('data-name', voices[i].name);
+    		gebi("voice").appendChild(option);
+        }
+    }
+}
+
+async function handleFiles(files) {
+    for (let file of files) {
+        const text = await file.text();
+        
+        if (file.name.endsWith(".json")) {
+            try {
+                const data = JSON.parse(text);
+                const arr = Array.isArray(data) ? data : [data];
+                arr.forEach(item => {
+                    if (item.text) {
+                        processAndGenerateSentences(item.text);
+                    }
+                });
+            } catch(e) { console.error("Training JSON Error", e); }
+        } else {
+            processAndGenerateSentences(text);
+        }
+    }
+    allNodes = Object.keys(graph);
+    updateStats(files.length);
+}
+
+function processAndGenerateSentences(text) {
+    let sentences = text.split(/(?<=[.!?])\s+/).filter(sentence => sentence.trim() .length > 0);
+    graph.push(sentences);
+}
+
+function displayRandomSentences() {
+    let fl = Math.floor(Math.random() * graph.length);
+    let sentences = graph[fl];
+    console.log(graph);
+    console.log(sentences);
+    const randomSentences = [];
+    
+    for (let i = 0; i < Math.min(25, sentences.length); i++) {
+        const randomIndex = Math.floor(Math.random() * sentences.length);
+        randomSentences.push(sentences[randomIndex]);
+        sentences.splice(randomIndex, 1);
+    }
+    
+    const container = document.getElementById("randomSentencesContainer");
+    const divElt = document.createElement("div");
+    container.appendChild(divElt);
+
+    container.className = "random-sentences";
+
+    divElt.id = "newDiv" + cntr;
+    divElt.className = "random-sentence";
+    
+    randomSentences.forEach(sentence => {
+        const color = '#' + Math.floor(Math.random() * 1677215).toString(16);
+        const sentenceElement = document.createElement('div');
+        sentenceElement.className = "random-sentence"; 
+        sentenceElement.style.color = color;
+        sentenceElement.style.margin = "5px 0";
+        sentenceElement.innerText = sentence.trim();
+        divElt.appendChild(sentenceElement);
+    });
+    speak();
+}
+
+function startAutoLoad() {
+    console.log("inside")
+        setInterval(() => {
+            cntr++;
+            displayRandomSentences();
+        }, 30000);
+    }
+
+// 3. FFWD and BKWD controls that safely bypass native SpeechSynthesis limitations
+function ffwd() {
+    // Stop whatever is currently being spoken
+    synth.cancel();
+
+    // Increment to the next bucket
+    cntr++;
+    displayRandomSentences();
+}
+
+function bkwd() {
+    // Don't let them go below the first bucket
+    if (cntr <= 0) {
+        cntr = 0;
+        return;
+    }
+
+    // Stop current speech
+    synth.cancel();
+
+    // Decrement to the previous bucket
+    cntr--;
+    displayRandomSentences();
+}
+
+function updateStats(fileCount) {
+    document.getElementById("fileLabel").innerText = `LOADED: ${fileCount} FILES`;
+}
+
+function speak() {
+
+
+    // 2. Determine the text to be spoken (Original Logic)
+    var textToSpeak = document.getElementById("newDiv" + cntr).innerText;
+
+    // 3. Chunking Logic
+    // This regex splits by punctuation (. ! ?) but keeps the punctuation with the sentence.
+    // It also filters out empty strings.
+    var chunks = textToSpeak.match(/[^\.!\?]+[\.!\?]+|[^\.!\?]+/g) || [textToSpeak];
+
+
+    // 4. Get current settings once to apply to all chunks
+    var vol = 1;
+    var rate = 1;
+    var pitch = 1;
+    var selectedOption = gebi("voice").selectedOptions[0].getAttribute('data-name');
+
+    var selectedVoice = voices.find(v => v.name === selectedOption);
+
+    // 5. Queue each chunk
+    chunks.forEach((chunkText) => {
+        var msg = new SpeechSynthesisUtterance(chunkText.trim());
+        
+        msg.volume = vol;
+        msg.rate = rate;
+        msg.pitch = pitch;
+        
+        if (selectedVoice) {
+            msg.voice = selectedVoice;
+        }
+
+
+        // Note: On some mobile browsers, speech only triggers 
+        // if the very first chunk is called directly inside a user-click event.
+        window.speechSynthesis.speak(msg);
+    });
+}
+
+
+// 1. Define a function to grab the voices
+function loadBraveVoices() {
+    const voices = window.speechSynthesis.getVoices();
+    
+    if (voices.length === 0) {
+        console.log("Still no voices found. Check Brave Shields or system settings.");
+    } else {
+        console.log(`Success! Loaded ${voices.length} voices.`);
+        // Do your synthesis assignment here, e.g.:
+        // const defaultVoice = voices.find(v => v.default) || voices[0];
+    }
+}
+
+// 2. Trigger it when the browser natively signals the list is ready
+if (window.speechSynthesis.onvoiceschanged !== undefined) {
+    window.speechSynthesis.onvoiceschanged = loadBraveVoices;
+}
+
+voices = window.speechSynthesis.getVoices();
+// 3. Fallback fire in case it already loaded before the listener bound
+//loadBraveVoices();
+
+//loadVoices();
+</script>
+</body>
+</html>
